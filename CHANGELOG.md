@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.1
 
 - `look samples` shows a look on the first slide that can be drawn in every direction. It
   used to pick one slide and refuse when that slide was too full for the brand's type, even
