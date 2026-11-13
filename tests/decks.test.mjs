@@ -137,3 +137,19 @@ test('table cells are audited, footers are not, and Harness Slides caption lines
   assert.equal(report.slides[0].words, 8, 'the table\'s words count, the footer\'s do not');
   assert.equal(run({ HARNESS_BRAND_DATA: brands }, 'presentation', '--brand', 'example', '--file', file, '--exceptions', 'x.json').status, 2);
 });
+
+test('a look is shown on the first slide that can be drawn: the candidates, best first', async () => {
+  const { lookCandidates, lookSlide } = await import('../scripts/lib/worker/looks.mjs');
+  const slide = (id, more = {}) => ({ id, kind: 'content', title: id, ...more });
+  const two = [{ label: 'One' }, { label: 'Two' }];
+  const outline = { slides: [{ id: 'cover', kind: 'cover', title: 'Deck' }, slide('plain'),
+    slide('drawn', { relation: 'parallel', points: two }), slide('focal_one', { relation: 'order', points: two, focal: 'One' }),
+    slide('unrelated', { relation: 'none', points: two }), slide('focal_two', { relation: 'parallel', points: two, focal: 'Two' })] };
+  // The first is the slide a look was always shown on; the rest are tried when it does not fit.
+  assert.deepEqual(lookCandidates(outline).map((each) => each.id), ['focal_one', 'focal_two', 'drawn', 'plain', 'unrelated']);
+  assert.equal(lookSlide(outline).id, 'focal_one');
+  assert.equal(lookSlide(outline, 'plain').id, 'plain');
+  assert.throws(() => lookSlide(outline, 'cover'), /No content slide cover/);
+  assert.deepEqual(lookCandidates({ slides: [] }), []);
+  assert.throws(() => lookSlide({ slides: [] }), /no content slide/);
+});

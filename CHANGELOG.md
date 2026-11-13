@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `look samples` shows a look on the first slide that can be drawn in every direction. It
+  used to pick one slide and refuse when that slide was too full for the brand's type, even
+  when most of the deck's slides fit. A slide named with `--slide` is still used as given.
+
 ## 1.1.0
 
 - One shared, generic rebranding worker for existing Google Slides and Docs, with
