@@ -1,6 +1,6 @@
 {
   "name": "harness-brand",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Harness Brand: user-supplied brand packs and icon libraries for slides, blogs and infographics.",
   "private": true,
   "type": "module",
