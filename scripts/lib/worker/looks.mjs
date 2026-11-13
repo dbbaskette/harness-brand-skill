@@ -47,10 +47,19 @@ export function lookSlide(outline, id) {
     if (!found) throw new Error(`No content slide ${id} in the outline`);
     return found;
   }
-  const drawn = content.filter((s) => s.relation && s.relation !== 'none' && (s.points ?? []).length >= 2);
-  const chosen = drawn.find((s) => s.focal) ?? drawn[0] ?? content[0];
+  const chosen = lookCandidates(outline)[0];
   if (!chosen) throw new Error('The outline has no content slide to show a look on');
   return chosen;
+}
+
+/** The slides a look can be shown on, best first: drawn slides with a focal point, the other
+ * drawn slides, then any content slide. The first is the one `lookSlide` picks. */
+export function lookCandidates(outline) {
+  const content = (outline?.slides ?? []).filter((s) => s?.kind === 'content');
+  const drawn = content.filter((s) => s.relation && s.relation !== 'none' && (s.points ?? []).length >= 2);
+  const first = drawn.find((s) => s.focal) ?? drawn[0] ?? content[0];
+  const rest = [...drawn.filter((s) => s.focal), ...drawn.filter((s) => !s.focal), ...content];
+  return [...new Set([first, ...rest].filter(Boolean))];
 }
 
 const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'what', 'your', 'their', 'into', 'over', 'team', 'plan']);
@@ -144,7 +153,7 @@ export async function lookSamples(chosen, { delivery, outline, output, slide: sl
   const deck = contract.design.slides.deck;
   const { checkOutline } = await slidesModule('scripts/lib/outline.mjs');
   await checkOutline(plan, contract);
-  const slide = lookSlide(plan, slideId);
+  let slide = lookSlide(plan, slideId);
   const { compileCompositionFile, renderCompositionDir } = await slidesModule('scripts/lib/compose-file.mjs');
   const brands = dirname(dirname(chosen.pack));
   const libraries = librariesOf(chosen.brand);
@@ -159,11 +168,35 @@ export async function lookSamples(chosen, { delivery, outline, output, slide: sl
     const brandFile = join(output, 'brand-contract.json');
     await writeFile(brandFile, `${JSON.stringify(contract, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
     const samples = [];
+    // Fit first with everything, then without the key, then without icons, then as plain peers.
+    const attempts = [{}, { legend: false }, { legend: false, icons: null }, { legend: false, icons: null, relation: 'parallel' }];
+    if (!slideId) {
+      // One slide too full for this brand's type is no reason to show no look: take the first
+      // candidate that can be drawn in every direction. A slide named with --slide is kept.
+      const trial = join(output, '.fit');
+      const fits = async (candidate) => {
+        for (const entry of deck.directions) {
+          let drawn = false;
+          for (const attempt of attempts) {
+            await rm(trial, { recursive: true, force: true });
+            await mkdir(trial, { mode: 0o700 });
+            const file = join(trial, 'composition.json');
+            await writeFile(file, `${JSON.stringify(sampleComposition(candidate, entry, contract.design.colors, { stripOnly: deck.stripOnly, ...attempt, icons: null }), null, 2)}\n`, { mode: 0o600 });
+            try { await compileCompositionFile({ file, brand: brandFile, output: join(trial, 'build'), project: output }); drawn = true; break; } catch { /* try it simpler */ }
+          }
+          if (!drawn) return false;
+        }
+        return true;
+      };
+      try {
+        for (const candidate of lookCandidates(plan)) {
+          if (await fits(candidate)) { slide = candidate; break; }
+        }
+      } finally { await rm(trial, { recursive: true, force: true }); }
+    }
     for (const entry of deck.directions) {
       const dir = join(output, entry.id);
       await mkdir(dir, { mode: 0o700 });
-      // Fit first with everything, then without the key, then without icons, then as plain peers.
-      const attempts = [{}, { legend: false }, { legend: false, icons: null }, { legend: false, icons: null, relation: 'parallel' }];
       let built;
       let composition;
       let dropped = [];
