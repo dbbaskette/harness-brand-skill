@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Render / test output
+out/
+renders/
+*.pptx.tmp
+
+# macOS
+.DS_Store
+
+# Local Claude Code state
+.claude/
+
+# Local test decks and renders (may contain private decks)
+test-runs/
+
+# Release archives
+dist/
+
+# Installed rebranding state and brand shortcuts
+rebrand/.state/
+rebrand/runs/
+brand-skills/

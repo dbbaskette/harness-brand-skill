@@ -1,0 +1,9 @@
+{
+  "slides": {
+    "repository": "https://github.com/dbbaskette/harness-slides-skill.git",
+    "commit": "1aaab3a7c8a267e1f675b29e4acfb30ef98300d2",
+    "package": "harness-slides",
+    "version": "0.16.0",
+    "minimumVersion": "0.15.1"
+  }
+}
