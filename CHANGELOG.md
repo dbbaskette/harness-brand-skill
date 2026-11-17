@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1
+
+- `rebrand run --document`: a drawing wider than the template's text column is scaled to
+  fit, and the words inside it (callouts, labels) now scale with it. They used to keep
+  their size and outgrow their boxes.
+- `rebrand run --document` names its result `<source>-<brand>-branded`, so copies of one
+  source in several brands' templates can be told apart. `--name` still overrides it.
+
 ## 1.2.0
 
 - A brand pack can carry Word document templates, such as a solution brief or a white

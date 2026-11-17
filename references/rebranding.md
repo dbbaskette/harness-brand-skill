@@ -89,7 +89,8 @@ python3 scripts/brand.py 'GOOGLE_DOC_URL_OR_FILE.docx' --document white-paper-te
 ```
 
 `--output` is `word`, `google` or `both` (the default): produce the one(s) asked for. The
-source is read, never edited. The template keeps its cover, running head, footers, back
+source is read, never edited. The result is named
+`<source>-<brand>-branded`. The template keeps its cover, running head, footers, back
 page and styles; the source's words replace the sample copy. Bold, italic, underline,
 strike and super/subscript are kept, code keeps a fixed-width face, and every other source
 format is dropped. The run refuses to write anything if text, a link, a picture or a

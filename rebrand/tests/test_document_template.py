@@ -123,6 +123,28 @@ class Fill(unittest.TestCase):
         names=zipfile.ZipFile(io.BytesIO(data)).namelist();self.assertIn('word/media/source1.png',names)
         extent=next(body(data).iter(D.WP+'extent'));self.assertLessEqual(int(extent.get('cx')),6*914400+1)
 
+    def test_words_inside_a_drawing_shrink_with_it(self):
+        from lxml import etree
+        from PIL import Image
+        def pictured(d):
+            raw=io.BytesIO();Image.new('RGB',(400,100),'navy').save(raw,'PNG');raw.seek(0)
+            d.add_picture(raw,width=__import__('docx').shared.Inches(12))
+        made=source(pictured);parts={}
+        with zipfile.ZipFile(io.BytesIO(made)) as z:parts={i.filename:z.read(i) for i in z.infolist()}
+        doc=etree.fromstring(parts['word/document.xml']);inline=next(doc.iter(D.WP+'inline'))
+        # A callout on the picture, as Google Docs exports a drawing: a text box with 20 pt type and one with none given.
+        box=etree.SubElement(inline,W+'txbxContent')
+        for size in ('40',None):
+            run=etree.SubElement(etree.SubElement(box,W+'p'),W+'r')
+            if size:etree.SubElement(etree.SubElement(run,W+'rPr'),W+'sz').set(W+'val',size)
+            etree.SubElement(run,W+'t').text='Callout'
+        parts['word/document.xml']=etree.tostring(doc);packed=io.BytesIO()
+        with zipfile.ZipFile(packed,'w') as z:
+            for name,data in parts.items():z.writestr(name,data)
+        data,_,_=D.fill(template(),packed.getvalue())
+        sizes=[int(x.get(W+'val')) for x in body(data).iter(W+'sz') if any(a.tag==W+'txbxContent' for a in x.iterancestors())]
+        self.assertEqual(sizes[0],20);self.assertEqual(len(sizes),2);self.assertLess(sizes[1],22)   # 12 in drawing in a 6 in column: half size
+
     def test_lost_words_are_caught_in_a_converted_copy(self):
         data,_,expected=D.fill(template(),source())
         self.assertEqual(D.returned(data,expected),[])

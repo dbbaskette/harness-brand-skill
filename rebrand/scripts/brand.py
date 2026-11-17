@@ -295,7 +295,8 @@ def document(api, source, ident, *, output='both', folder=None, name=None, run_d
     template=(PROFILE/'documents'/catalog[ident]['file']).read_bytes()
     try:data,report,expected=fill(template,original,name=title,when=when)
     except TemplateError as exc:raise BrandError(str(exc)) from None
-    final=name or branded_name(title)
+    # Name the brand in the result: the same source is often put into several brands' templates.
+    final=name or (title if title.endswith(f"-{BRAND['id']}-branded") else f"{title}-{BRAND['id']}-branded")
     result={'status':'branded','name':final,'format':'docs','brand':BRAND['name'],'document':{'id':ident,'name':catalog[ident].get('name',ident)},
             'template_fill':report,'outputs':{},'source_file':str((directory/'source.docx').resolve()),'local_content_verified':True,'visual_review':'required',
             'warnings':['Open the Word file and update the table of contents; check page breaks, picture sizes and anything listed as not carried.']}

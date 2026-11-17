@@ -137,7 +137,7 @@ Google Doc or a local `.docx`; ask for a Word file, a Google Doc, or both:
 node scripts/harness-brand.mjs rebrand run 'GOOGLE_DOC_URL' --brand company --document white-paper-tech --output both
 ```
 
-The source is only read. Its words go into the template's styles behind the template's
+The source is only read. The result is named `<source>-<brand>-branded`. Its words go into the template's styles behind the template's
 cover, headers, footers and back page. The Word file is the faithful output; Google Docs
 keeps the words, styles, tables and pictures but can drop page furniture such as a footer logo.
 
