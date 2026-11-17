@@ -104,6 +104,32 @@ class Fill(unittest.TestCase):
         header=next(n for n in zipfile.ZipFile(io.BytesIO(data)).namelist() if 'header' in n and b'whole sentence' in zipfile.ZipFile(io.BytesIO(data)).read(n))
         self.assertIn(b'w:sz w:val="21"',zipfile.ZipFile(io.BytesIO(data)).read(header))   # 28 half-points by default, at 75%
 
+    def test_an_italic_line_under_a_styled_title_is_the_subtitle(self):
+        def made(line,italic=True,then='heading'):
+            d=Document();d.add_paragraph('The Title',style='Title');d.add_paragraph().add_run(line).italic=italic
+            if then=='heading':d.add_heading('Part',1)
+            d.add_paragraph('Body words that end with a full stop.');d.add_heading('Other part',1);d.add_paragraph('More.')
+            out=io.BytesIO();d.save(out);return out.getvalue()
+        _,report,_=D.fill(template(),made('A tagline under the title.'))
+        self.assertEqual((report['subtitle'],report['guessed']),('A tagline under the title.',['subtitle']))
+        # An ordinary opening sentence, as long as what follows it, stays in the body.
+        data,report,_=D.fill(template(),made('Body words that begin the paper end with a stop.',italic=False,then='body'))
+        self.assertIsNone(report['subtitle']);self.assertIn('Body words that begin the paper end with a stop.',[t for _,t in paragraphs(data)])
+
+    def test_a_long_title_is_shortened_in_the_running_head_only(self):
+        def titled(words):
+            d=Document();d.add_paragraph(words,style='Title');d.add_heading('Part',1);d.add_paragraph('Words.');out=io.BytesIO();d.save(out);return out.getvalue()
+        tpl=Document(io.BytesIO(template()));tpl.sections[0].header.add_paragraph('Headline Page 2 Onwards',style='vmwHeadlinepage2onwards')
+        packed=io.BytesIO();tpl.save(packed)
+        long='From Provenance to Protection: Why Runtime Posture Defaults Are the Essential Follow-On to Trusted Artifacts'
+        data,report,_=D.fill(packed.getvalue(),titled(long))
+        headers=''.join(zipfile.ZipFile(io.BytesIO(data)).read(n).decode() for n in zipfile.ZipFile(io.BytesIO(data)).namelist() if 'header' in n)
+        self.assertEqual(report['running_head'],'From Provenance to Protection');self.assertEqual(report['title'],long)
+        self.assertIn('>From Provenance to Protection<',headers);self.assertIn(long,headers)
+        _,plain,_=D.fill(packed.getvalue(),titled('A very long title without any colon in it that simply keeps going and going well beyond eighty characters'))
+        self.assertTrue(plain['running_head'].endswith('…'));self.assertLessEqual(len(plain['running_head']),81)
+        _,short,_=D.fill(packed.getvalue(),titled('Short title'));self.assertIsNone(short['running_head'])
+
     def test_bold_is_kept_and_other_formatting_is_dropped(self):
         def styled(d):
             run=d.add_paragraph('Plain ').add_run('loud');run.bold=True;run.font.name='Comic Sans MS';run.font.size=__import__('docx').shared.Pt(30)
