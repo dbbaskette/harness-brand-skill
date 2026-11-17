@@ -33,6 +33,7 @@ folder when they keep their work locally.
 | `tokens.json` | yes | every colour with its light and dark value, the type styles, spacing and radius | `pack tokens`, or by hand |
 | `templates/<variant>.pptx` | for slides | the brand's PowerPoint template, as received | `pack measure` copies it |
 | `layouts.json` | for slides | each template layout as measured, and what each is for | `pack measure`, then a person or an assistant |
+| `templates/documents/*.dotx` | no | Word templates for documents such as a solution brief or a white paper, in the brand's identity | copied from the sources |
 | `previews/<variant>/<layout>.png` | no | a picture of each layout | `pack previews` |
 | `guide.md` | yes | the brand's rules, voice and naming, in plain words | a person or an assistant |
 | `directions.json` | for slides | the deck directions the brand offers | a person or an assistant |
@@ -111,6 +112,7 @@ Every path a pack file gives is inside the pack, written with `/`, such as
 | `variants` | yes | one entry per variant, such as `light` and `dark` (below) |
 | `icons` | no | the icon libraries the brand uses: `library` (the id of a library in `brands/icon-libraries/`), `default` (searched first), `roles` (for a glyph library, the colour roles a glyph may be drawn in) |
 | `logos` | yes | `onLight` and `onDark`: the logo files in `assets/` for light and dark grounds, such as `assets/logo-on-light.svg` |
+| `documents` | no | the brand's Word document templates: a list of `{ id, name, useWhen, file, page, notes }`. `file` is a `.dotx` or `.docx` in `templates/documents/`; `page` is its paper size, such as `US Letter`; `notes` says what to know before using it (the fonts it needs, which parts are placeholders). `harness-brand documents --brand B` lists them with their paths |
 | `language` | no | `headlineCase` (`sentence` or `title`), `preserveProductNamesAndAcronyms` (true or false), `names` (a list of naming rules, each a sentence) |
 | `visual` | no | anything more the brand's contract should carry, as it is: `geometry`, `imagery`, `accessibility`, `colorPolicy`, `emphasis`, and `infographicTypography` (`body_pt`, `source_pt`, `body_px`, `source_px`: the smallest text sizes for infographics) |
 | `draft` | no | what is left to review, as sentences, written by `pack scaffold`; `pack check` refuses a pack that has it, so remove it once the pack is reviewed |

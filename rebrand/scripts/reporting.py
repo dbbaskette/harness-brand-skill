@@ -46,6 +46,20 @@ def save(result,directory):
     lines+=['Native content preservation: '+('verified' if result.get('content_verified') else 'not verified' if result.get('file_id') else 'not applicable; no native copy created')+'.',
             'This report separates measurable formatting findings, author decisions, and review reminders. Counts are not a compliance score.','']
     if result.get('elapsed_seconds') is not None:lines += [f"Elapsed: {result['elapsed_seconds']:.2f}s.",'']
+    filled=result.get('template_fill')
+    if filled:
+        doc=result.get('document',{})
+        lines+=['## Document template','',f"Template: **{doc.get('name',doc.get('id','document'))}**. Title: {filled['title']}."+(f" Subtitle: {filled['subtitle']}." if filled.get('subtitle') else ' No subtitle in the source.')+f" Date on the cover: {filled['date']}.",'']
+        for kind,where in (result.get('outputs') or {}).items():
+            lines+=[('Word file: '+local_link('open',where)) if kind=='word' else '[Google Doc]('+where+')','']
+        if filled.get('guessed'):lines+=['The source has no Title style, so its first heading was taken as the '+' and the line under it as the '.join(filled['guessed'])+'. Check the cover.','']
+        counts=filled['blocks'];names={'h1':'level-1 headings','h2':'level-2 headings','h3':'level-3 headings','body':'paragraphs','bullet':'bullets','number':'numbered items','table':'tables'}
+        lines+=['Placed, each in the template\'s own style: '+', '.join(f"{counts[k]} {names[k]}" for k in names if counts.get(k))+f"; {filled['pictures']} pictures, {filled['links']} links, {filled['footnotes']} footnotes.",'']
+        if filled.get('code_runs'):lines+=[f"{filled['code_runs']} runs of code were kept in a fixed-width face (Courier New); the template has no code style of its own.",'']
+        if filled.get('contents_entries'):lines+=[f"Table of contents: {filled['contents_entries']} entries written without page numbers; Word fills them in when it updates the field.",'']
+        if filled.get('closing_section'):lines+=[f"The last section (\"{filled['closing_section']}\") starts the final page, which carries the legal footer.",'']
+        lines+=['Not carried: '+('; '.join(filled['not_carried'])+'.' if filled.get('not_carried') else 'nothing.'),'',
+                'Source formatting other than bold, italic, underline, strike and super/subscript is dropped: the template decides how things look.','']
     swaps=result.get('compliance',{}).get('icon_replacements',[])
     if swaps:
         lines+=['## Inspected icon replacements','','| Slide / drawing | Target | Approved icon | Treatment |','| --- | --- | --- | --- |']

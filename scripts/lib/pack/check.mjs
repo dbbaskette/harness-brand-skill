@@ -359,6 +359,22 @@ export function checkPack(pack, { hashes = true } = {}) {
       problems.push(`brand.json's logos.${key} must name a logo file in the pack's assets/ folder.`);
     }
   }
+  // Document templates: Word files a studio starts a brief or a paper from. Optional.
+  if (brand.documents !== undefined && !Array.isArray(brand.documents)) problems.push('brand.json\'s documents must be a list.');
+  const documentIds = new Set();
+  for (const [i, entry] of list(brand.documents).entries()) {
+    const label = `Document template ${i + 1} (${object(entry) && text(entry.id) ? entry.id : 'no id'})`;
+    if (!object(entry) || !text(entry.id) || !SLUG.test(entry.id) || !text(entry.name) || !text(entry.useWhen)) {
+      problems.push(`${label} needs an id of lower-case letters, digits and hyphens, a name and useWhen.`); continue;
+    }
+    if (documentIds.has(entry.id)) problems.push(`${label} repeats an id used before.`);
+    documentIds.add(entry.id);
+    const file = entry.file;
+    if (!text(file) || !file.startsWith('templates/documents/') || file.split('/').includes('..') || !/\.(dotx|docx)$/.test(file) || !existsSync(join(pack, file))) {
+      problems.push(`${label} must name a .dotx or .docx file in the pack's templates/documents/ folder.`);
+    }
+    if (entry.page !== undefined && !text(entry.page)) problems.push(`${label}'s page must say its paper size, such as US Letter.`);
+  }
   const language = brand.language;
   if (language !== undefined && (!object(language) || (language.headlineCase !== undefined && !['sentence', 'title'].includes(language.headlineCase))
       || (language.preserveProductNamesAndAcronyms !== undefined && typeof language.preserveProductNamesAndAcronyms !== 'boolean')

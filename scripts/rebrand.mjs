@@ -8,7 +8,7 @@ import { dataFolder } from './lib/worker/brands.mjs';
 import { targets } from './lib/install.mjs';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const WORKER = join(ROOT, 'rebrand');
-const USAGE = 'Usage: harness-brand rebrand setup [--brand ID] [--replace-brand-shortcuts] | run SOURCE --brand ID [--review] | status --brand ID | icons --brand ID search WORDS';
+const USAGE = 'Usage: harness-brand rebrand setup [--brand ID] [--replace-brand-shortcuts] | run SOURCE --brand ID [--review] [--document ID [--output word|google|both]] | status --brand ID | icons --brand ID search WORDS';
 
 export function profiles(data = dataFolder()) {
   if (!data || !existsSync(data)) return [];

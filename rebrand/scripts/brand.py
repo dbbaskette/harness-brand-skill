@@ -98,7 +98,26 @@ class Drive:
             'supportsAllDrives':'true', 'fields':'id,name,mimeType,version,modifiedTime,capabilities(canCopy,canDownload),trashed,webViewLink'}))
 
     def export(self, source, mime):
-        return self.request(DRIVE+'/'+quote(source, safe='')+'/export?'+urlencode({'mimeType':mime}), binary=True)
+        try:
+            return self.request(DRIVE+'/'+quote(source, safe='')+'/export?'+urlencode({'mimeType':mime}), binary=True)
+        except BrandError as exc:
+            if 'too large to be exported' not in str(exc):raise
+        # The export endpoint stops at 10 MB. Google gives each native file its own export links, which do not.
+        links = self.request(DRIVE+'/'+quote(source, safe='')+'?'+urlencode({'supportsAllDrives':'true','fields':'exportLinks'})).get('exportLinks', {})
+        link = links.get(mime, '')
+        parsed = urlparse(link)
+        if parsed.scheme != 'https' or parsed.hostname != 'docs.google.com' or not parsed.path.startswith('/feeds/download/'):
+            raise BrandError('The source is too large for a normal export and Google offered no export link for it.')
+        try:
+            with urlopen(Request(link, headers={'Authorization': 'Bearer '+self.token}), timeout=300) as response:
+                data = response.read(MAX_EXPORT+1)
+        except HTTPError as exc:
+            exc.close();raise BrandError(f'Google Drive HTTP {exc.code}: the large-file export was refused.') from None
+        except (TimeoutError, URLError):
+            raise BrandError('Google Drive network failure during the large-file export.') from None
+        if len(data) > MAX_EXPORT:
+            raise BrandError('The source exceeds the 40 MB transfer limit.')
+        return data
 
     def import_native(self, data, name, native_mime, office_mime, folder=None):
         # Resumable protocol supports the supplied >5 MB example as well as small files.
@@ -248,10 +267,67 @@ def brand(api, source, *, tidy=False, dry_run=False, folder=None, progress=None,
         return completed(result)
 
 
+def document(api, source, ident, *, output='both', folder=None, name=None, run_dir=None, progress=None, when=None):
+    """Flow a Google Doc or a local .docx into one of the brand's Word document templates."""
+    from brand_config import BRAND, PROFILE
+    from document_template import fill, returned, TemplateError
+    catalog=BRAND.get('documents') or {}
+    if ident not in catalog:
+        raise BrandError(f"{BRAND['name']} has no document template {ident}."+(f" Choose {', '.join(sorted(catalog))}." if catalog else ' Its rebranding profile lists none.'))
+    started=time.monotonic()
+    def stage(label):
+        if progress:progress({'status':'progress','stage':label,'elapsed_seconds':round(time.monotonic()-started,2)})
+    stage('reading_source')
+    local=Path(source).expanduser()
+    if local.suffix.lower()=='.docx' and local.is_file():
+        original=local.read_bytes();title=local.stem;origin=None
+        if output!='word' and api is None:raise BrandError('A Google copy needs Google access.')
+    else:
+        origin=file_id(source);meta=api.metadata(origin);native=meta.get('mimeType')
+        if FORMATS.get(native,('',))[0]!='docs':raise BrandError('A document template takes a Google Doc or a local .docx file.')
+        if meta.get('trashed') or meta.get('capabilities',{}).get('canDownload') is False:raise BrandError('The source cannot be exported.')
+        original=api.export(origin,FORMATS[native][1]);title=meta['name']
+        fresh=api.metadata(origin)
+        if any(meta.get(k)!=fresh.get(k) for k in ('version','modifiedTime')):raise BrandError('Source changed during export; no output created. Retry from a fresh snapshot.')
+    directory=Path(run_dir);directory.mkdir(parents=True,exist_ok=True)
+    (directory/'source.docx').write_bytes(original)
+    stage('filling_template')
+    template=(PROFILE/'documents'/catalog[ident]['file']).read_bytes()
+    try:data,report,expected=fill(template,original,name=title,when=when)
+    except TemplateError as exc:raise BrandError(str(exc)) from None
+    final=name or branded_name(title)
+    result={'status':'branded','name':final,'format':'docs','brand':BRAND['name'],'document':{'id':ident,'name':catalog[ident].get('name',ident)},
+            'template_fill':report,'outputs':{},'source_file':str((directory/'source.docx').resolve()),'local_content_verified':True,'visual_review':'required',
+            'warnings':['Open the Word file and update the table of contents; check page breaks, picture sizes and anything listed as not carried.']}
+    if catalog[ident].get('official') is False:
+        result['warnings'].append(f"This template was derived from another brand's design and is not an official {BRAND['name']} template; check with the brand team before external use.")
+    if output in ('word','both'):
+        path=directory/(re.sub(r'[^A-Za-z0-9 ._()-]+','-',final).strip() or 'document')
+        path=path.with_name(path.name+'.docx');path.write_bytes(data);result['outputs']['word']=str(path.resolve());result['preview_file']=str(path.resolve())
+    if output in ('google','both'):
+        stage('creating_native_copy')
+        native='application/vnd.google-apps.document';office=FORMATS[native][1]
+        made=api.import_native(data,final,native,office,folder);target=made.get('id')
+        if not target or target==origin:raise BrandError('Google did not return a distinct output ID. Inspect Drive before retrying.')
+        result.update(file_id=target,url=made.get('webViewLink'));result['outputs']['google']=made.get('webViewLink')
+        if progress:progress({'status':'copy_created','file_id':target,'url':made.get('webViewLink')})
+        stage('verifying_native_copy')
+        check,back=settled_export(api,target,native,office)
+        (directory/'returned.docx').write_bytes(back);result['returned_file']=str((directory/'returned.docx').resolve())
+        problems=returned(back,expected)
+        result['content_verified']=not problems
+        if problems:result.update(status='incomplete',error='Google conversion changed checked content: '+'; '.join(problems)+'. The Word file is complete; review the Google copy.')
+        result['warnings'].append("Google Docs keeps the words, styles, tables and pictures but not Word's page design exactly: the cover artwork, headers and footers can shift. The Word file is the faithful one.")
+    result['elapsed_seconds']=round(time.monotonic()-started,2)
+    return result
+
+
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--brand',help='Explicit installed brand ID; required unless provided by a brand shortcut')
-    parser.add_argument('source',help='Google Slides/Docs URL or Drive file ID')
+    parser.add_argument('source',help='Google Slides/Docs URL or Drive file ID; with --document, also a local .docx file')
+    parser.add_argument('--document',help="Flow the source into one of the brand's Word document templates, by ID (for example white-paper-tech)")
+    parser.add_argument('--output',choices=('word','google','both'),default='both',help='With --document: a Word file, a Google Doc, or both (default)')
     parser.add_argument('--preview',help='Save the locally branded PPTX/DOCX for visual review (combine with --dry-run)')
     parser.add_argument('--template-plan',help='Inspected slide roles and text shape IDs; see references/template-alignment.md')
     parser.add_argument('--icon-map',help='JSON map of inspected functional icons to bundled icon IDs; see references/icons.md')
@@ -270,7 +346,9 @@ def main(argv=None):
     try:
         if args.brand:os.environ['HARNESS_REBRAND_BRAND']=args.brand
         from brand_config import ASSET_VERSION  # Fails before any Google access.
-        source=file_id(args.source)
+        local_source=bool(args.document) and Path(args.source).expanduser().suffix.lower()=='.docx' and Path(args.source).expanduser().is_file()
+        source=args.source if local_source else file_id(args.source)
+        if args.document and (args.review or args.verify_copy or args.template_plan or args.dry_run):raise BrandError('--document does not combine with --review, --verify-copy, --template-plan or --dry-run.')
         template_plan=json.loads(Path(args.template_plan).read_text()) if args.template_plan else None
         icon_map=json.loads(Path(args.icon_map).read_text()) if args.icon_map else None
         if args.verify_copy and args.review:raise BrandError('--verify-copy is content-only; use visual_review.py to review an exported copy.')
@@ -286,8 +364,13 @@ def main(argv=None):
         if args.review:
             from visual_review import preflight
             preflight(args.reviewer)
-        api=Drive(args.account)
-        if args.verify_copy:
+        api=None if (local_source and args.output=='word') else Drive(args.account)
+        if args.document:
+            def progress(event):
+                if event.get('status')=='copy_created':(run_dir/'checkpoint.json').write_text(json.dumps(event))
+                print(json.dumps(event),file=sys.stderr,flush=True)
+            result=document(api,source,args.document,output=args.output,folder=args.folder,name=args.name,run_dir=run_dir,progress=progress)
+        elif args.verify_copy:
             result=verify_copy(api,source,args.verify_copy,args.remove_brand_shape,icon_map,template_plan)
         else:
             def progress(event):

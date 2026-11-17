@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.2.0
+
+- A brand pack can carry Word document templates, such as a solution brief or a white
+  paper. `brand.json` lists them under `documents` (`id`, `name`, `useWhen`, `file`,
+  `page`, `notes`), the files live in `templates/documents/`, `pack check` validates the
+  list and `pack seal` seals the files. `harness-brand documents --brand B` lists a
+  brand's templates and where each file is. Packs without `documents` are unchanged.
+- `rebrand run SOURCE --brand B --document ID` flows an existing Google Doc or local
+  `.docx` into one of the brand's document templates. The template keeps its cover,
+  headers, footers, back page and styles; the source's title, headings, paragraphs,
+  lists, tables, pictures, links, footnotes and code replace the sample copy, each in the
+  template's own style. `--output word|google|both` (default both) chooses a Word file, a
+  new Google Doc, or both. Nothing is reworded, the source is never edited, and the run is
+  refused if any text, link, picture or footnote is missing from the result. A rebranding
+  profile lists its templates under `documents` in its `brand.json`.
+- Google Docs larger than Drive's 10 MB export limit are exported through the file's own
+  export link.
+
 ## 1.1.1
 
 - `look samples` shows a look on the first slide that can be drawn in every direction. It

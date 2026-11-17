@@ -2,7 +2,7 @@
 // Harness Brand: brand packs and icon libraries for the studios' slides, blogs and infographics.
 import { USAGE as PACK } from './pack.mjs';
 
-const COMMANDS = { rebrand: './rebrand.mjs', version: './version.mjs', brands: './brands.mjs', contract: './contract.mjs', layouts: './layouts.mjs', icons: './icons.mjs',
+const COMMANDS = { rebrand: './rebrand.mjs', version: './version.mjs', brands: './brands.mjs', contract: './contract.mjs', layouts: './layouts.mjs', documents: './documents.mjs', icons: './icons.mjs',
   doctor: './doctor.mjs', data: './data.mjs', presentation: './presentation.mjs', guidance: './guidance.mjs', look: './look.mjs', pack: './pack.mjs' };
 
 const USAGE = `Usage: harness-brand <command> [options]
@@ -10,11 +10,13 @@ const USAGE = `Usage: harness-brand <command> [options]
   version
   rebrand setup [--brand ID] [--replace-brand-shortcuts]
   rebrand run SOURCE --brand ID [--review] [--template-plan FILE]
+  rebrand run SOURCE --brand ID --document ID [--output word|google|both]   (flow a Google Doc or .docx into a brand document template)
   rebrand status --brand ID
   brands [--json]
   contract export --medium slides|blog --brand B [--variant V] [--delivery live|reading] [--voice-profile FILE] --output NEW_DIR
   contract check --file brand-contract.json
   layouts --brand B [--variant V] [--query WORDS | --id ID] [--relationship R] [--all] [--json]
+  documents --brand B [--id ID] [--json]
   icons --query WORDS [--brand B [--variant V]] [--limit 1-20] [--json]
   presentation --brand B [--variant V] --file deck.pptx [--json] [--strict]
   guidance start|resume --skill slides --project DIR [--task ID] [--brand B [--variant V]]
