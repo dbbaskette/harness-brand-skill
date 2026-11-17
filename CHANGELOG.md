@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.2
+
+- `rebrand run --document`: a long subtitle (over 90 characters) is set at 85% of the
+  template's size, and over 140 characters at 75%, so it keeps its place on the cover. The
+  report says when it did so.
+
 ## 1.2.1
 
 - `rebrand run --document`: a drawing wider than the template's text column is scaled to

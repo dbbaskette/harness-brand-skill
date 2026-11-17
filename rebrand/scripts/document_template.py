@@ -112,6 +112,7 @@ class Filler:
         styles=etree.fromstring(self.parts['word/styles.xml']);self.styles={s.get(W+'styleId') for s in styles.iter(W+'style')}
         self.media=0;self.carried={};self.drawing=9000;self.notes={};self.links=[];self.pictures=0;self.dropped=[];self.lists={};self.guessed=[];self.code=0
         self.numbering=etree.fromstring(self.parts['word/numbering.xml']) if 'word/numbering.xml' in self.parts else None
+        self.sizes={s.get(W+'styleId'):int(z.get(W+'val')) for s in styles.iter(W+'style') if (z:=s.find(W+'rPr/'+W+'sz')) is not None};self.subtitle_scale=1
         self.style_numbers={s.get(W+'styleId'):n.get(W+'val') for s in styles.iter(W+'style') if (n:=s.find(W+'pPr/'+W+'numPr/'+W+'numId')) is not None}
         sect=[s for s in self.doc.iter(W+'sectPr')][0];size,margin=sect.find(W+'pgSz'),sect.find(W+'pgMar')
         self.column=(int(size.get(W+'w'))-int(margin.get(W+'left'))-int(margin.get(W+'right')))*635   # twips to EMU
@@ -338,7 +339,21 @@ class Filler:
         for p in root.iter(W+'p'):
             ref=p.find(W+'pPr/'+W+'pStyle');style=ref.get(W+'val') if ref is not None else None
             if style in ('vmwHeadline','vmwHeadlinepage2onwards') and text_of(p).strip():self.set_text(p,title)
-            elif style=='vmwSubhead' and text_of(p).strip():self.set_text(p,subtitle or '')
+            elif style=='vmwSubhead' and text_of(p).strip():
+                self.set_text(p,subtitle or '')
+                # A subtitle written as a sentence is longer than the template allows for: set it smaller, so it
+                # keeps to its place on the cover.
+                factor=1 if len(subtitle or '')<=90 else 0.85 if len(subtitle)<=140 else 0.75
+                if factor<1:
+                    for run in p.iter(W+'r'):
+                        props=run.find(W+'rPr')
+                        if props is None:props=el('rPr');run.insert(0,props)
+                        for name in ('sz','szCs'):
+                            size=props.find(W+name)
+                            if size is None:size=el(name,val=self.sizes.get('vmwSubhead',28));props.append(size)
+                            else:size.set(W+'val',str(self.sizes.get('vmwSubhead',int(size.get(W+'val')))))
+                            size.set(W+'val',str(round(int(size.get(W+'val'))*factor)))
+                    self.subtitle_scale=factor
             elif re.fullmatch(r'\s*Item No:.*',text_of(p)):self.set_text(p,'')
             elif re.search(r'Month 20\d\d',text_of(p)):
                 month,year=when.rsplit(' ',1) if ' ' in when else (when,'')
@@ -434,7 +449,7 @@ class Filler:
         counts={k:sum(1 for kind,_,_ in everything if kind==k) for k in ('h1','h2','h3','body','bullet','number','table')}
         report={'title':title,'subtitle':subtitle,'date':when,'blocks':counts,'pictures':self.pictures,'links':len(self.links),'footnotes':len(notes),
                 'contents_entries':sum(1 for kind,_,words in made if kind in ('h1','h2') and words) if sdt is not None else 0,
-                'closing_section':closing[0][2][0] if closing and closing[0][2] else None,'not_carried':sorted(set(self.dropped)),'guessed':self.guessed,'code_runs':self.code}
+                'closing_section':closing[0][2][0] if closing and closing[0][2] else None,'not_carried':sorted(set(self.dropped)),'guessed':self.guessed,'code_runs':self.code,'subtitle_scale':self.subtitle_scale}
         expected={'text':[' '.join(w.split()) for _,_,words in everything for w in words],'links':sorted(self.links),'pictures':self.media,'drawings':self.pictures,'footnotes':notes}
         return out.getvalue(),report,expected
 
