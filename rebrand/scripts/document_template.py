@@ -112,7 +112,7 @@ class Filler:
         styles=etree.fromstring(self.parts['word/styles.xml']);self.styles={s.get(W+'styleId') for s in styles.iter(W+'style')}
         self.media=0;self.carried={};self.drawing=9000;self.notes={};self.links=[];self.pictures=0;self.dropped=[];self.lists={};self.guessed=[];self.code=0
         self.numbering=etree.fromstring(self.parts['word/numbering.xml']) if 'word/numbering.xml' in self.parts else None
-        self.sizes={s.get(W+'styleId'):int(z.get(W+'val')) for s in styles.iter(W+'style') if (z:=s.find(W+'rPr/'+W+'sz')) is not None};self.subtitle_scale=1
+        self.short_head=None;self.title_scale=1;self.sub_fit=1;self.sizes={s.get(W+'styleId'):int(z.get(W+'val')) for s in styles.iter(W+'style') if (z:=s.find(W+'rPr/'+W+'sz')) is not None};self.subtitle_scale=1
         self.style_numbers={s.get(W+'styleId'):n.get(W+'val') for s in styles.iter(W+'style') if (n:=s.find(W+'pPr/'+W+'numPr/'+W+'numId')) is not None}
         sect=[s for s in self.doc.iter(W+'sectPr')][0];size,margin=sect.find(W+'pgSz'),sect.find(W+'pgMar')
         self.column=(int(size.get(W+'w'))-int(margin.get(W+'left'))-int(margin.get(W+'right')))*635   # twips to EMU
@@ -293,7 +293,7 @@ class Filler:
         """(kind, element, text) for everything the source says, in order; plus its title and subtitle."""
         made=[];title=subtitle=None;intro=self.style('vmwintroparagraph') if any(p.find(W+'pPr/'+W+'pStyle') is not None and p.find(W+'pPr/'+W+'pStyle').get(W+'val')=='vmwintroparagraph' for p in self.body.iter(W+'p')) else None
         styles={'h1':self.style('Heading1'),'h2':self.style('Heading2'),'h3':self.style('Heading3','Heading2'),'body':self.style('vmwbodycopy'),'number':self.style('vmwnumbered','vmwbodycopy')}
-        body=self.source.doc.find(W+'body');started=False;run=[0]
+        body=self.source.doc.find(W+'body');started=False;run=[0];leading=[False]
         def walk(children):
             nonlocal title,subtitle,started
             for child in children:
@@ -309,7 +309,8 @@ class Filler:
                     words=text_of(child);has_picture=child.find('.//'+W+'drawing') is not None
                     if not words.strip() and not has_picture:continue
                     kind,level,source_list=self.source.kind(child)
-                    if kind=='title' and title is None:title=' '.join(words.split());continue
+                    if kind=='title' and title is None:
+                        title=' '.join(words.split());leading[0]=not made;continue
                     if kind=='subtitle' and subtitle is None:subtitle=' '.join(words.split());continue
                     if kind in ('title','subtitle'):kind='h1' if kind=='title' else 'body'
                     if kind=='bullet':style=self.style('vmwbullet2' if level else 'vmwbullet1','vmwbullet1','vmwbodycopy');number=None
@@ -321,9 +322,15 @@ class Filler:
         walk(body)
         # Many documents have no Title style: the first heading is the title, and one short line under it the subtitle.
         if title is None and len(made)>1 and made[0][0]=='h1' and made[0][2] and sum(1 for kind,_,_ in made if kind=='h1')>1:
-            title=' '.join(made[0][2][0].split());made.pop(0);self.guessed.append('title')
-            if subtitle is None and made and made[0][0]=='body' and made[0][2] and len(made[0][2][0])<=180 and made[0][1].find('.//'+W+'drawing') is None and (not made[0][2][0].rstrip().endswith(('.','?','!',':')) or (len(made)>1 and made[1][0]=='body' and made[1][2] and len(made[1][2][0])>len(made[0][2][0]))):
-                subtitle=' '.join(made[0][2][0].split());made.pop(0);self.guessed.append('subtitle')
+            title=' '.join(made[0][2][0].split());made.pop(0);self.guessed.append('title');leading[0]=True
+        # A subtitle is often just a short line under the title, with no Subtitle style: set in italic, not a
+        # full sentence, followed by a heading, or followed by a longer paragraph.
+        if subtitle is None and leading[0] and made and made[0][0]=='body' and made[0][2] and len(made[0][2][0])<=180 and made[0][1].find('.//'+W+'drawing') is None:
+            words=made[0][2][0];runs=[r for r in made[0][1].iter(W+'r') if text_of(r).strip()]
+            after=made[1] if len(made)>1 else None
+            if (not words.rstrip().endswith(('.','?','!',':')) or (runs and all((i:=r.find(W+'rPr/'+W+'i')) is not None and i.get(W+'val') not in ('0','false') for r in runs))
+                    or (after is not None and (after[0] in ('h1','h2','h3') or (after[0]=='body' and after[2] and len(after[2][0])>len(words))))):
+                subtitle=' '.join(words.split());made.pop(0);self.guessed.append('subtitle')
         return made,title,subtitle
 
     # --- the template ---------------------------------------------------------------------
@@ -335,15 +342,52 @@ class Filler:
         for r in runs[1:]:
             for t in r.findall(W+'t'):r.remove(t)
 
+    def title_fit(self,p,title,subtitle):
+        """How much smaller the cover title must be set for it and the subtitle to stay inside their text box.
+        Estimated from the box and average letter widths, so it errs towards smaller."""
+        import math
+        holder=next((a for a in p.iterancestors() if a.tag in (WP+'anchor',WP+'inline')),None)
+        if holder is None or holder.find(WP+'extent') is None:return self.title_scale   # the legacy copy of the same box
+        width=int(holder.find(WP+'extent').get('cx'))/12700-16;height=int(holder.find(WP+'extent').get('cy'))/12700-10
+        base=self.sizes.get('vmwHeadline',54)/2;under=self.sizes.get('vmwSubhead',28)/2
+        scale=1 if len(subtitle or '')<=90 else 0.85 if len(subtitle)<=140 else 0.75
+        # Measured on rendered covers: Arial averages 0.48 em a letter; the template leads titles at 1.35 and subtitles at 1.55.
+        def lines(words,points):return math.ceil(len(words)*points*0.48/width) if words else 0
+        def fits(factor,small):return lines(title,base*factor)*base*factor*1.35+lines(subtitle or '',under*small)*under*small*1.55+16<=height
+        # Prefer the largest title; let the subtitle give way first.
+        factor,small=next(((f,m) for f in (1,0.9,0.8,0.7,0.6) for m in (scale,0.85,0.75) if m<=scale and fits(f,m)),(0.6,0.75))
+        self.title_scale=factor;self.sub_fit=small
+        return factor
+
+    def running_head(self,title,limit=80):
+        """The title as it runs along the top of inside pages: one line. A long title gives its part before
+        the colon, or is cut at a word with an ellipsis; the cover keeps it whole."""
+        if len(title)<=limit:return title
+        lead=re.split(r':\s|\s[—–-]\s',title,maxsplit=1)[0].strip()
+        short=lead if 12<=len(lead)<=limit else title[:limit].rsplit(' ',1)[0].rstrip(' ,;:—–-')+'…'
+        self.short_head=short
+        return short
+
     def headings(self,root,title,subtitle,when):
         for p in root.iter(W+'p'):
             ref=p.find(W+'pPr/'+W+'pStyle');style=ref.get(W+'val') if ref is not None else None
-            if style in ('vmwHeadline','vmwHeadlinepage2onwards') and text_of(p).strip():self.set_text(p,title)
+            if style=='vmwHeadline' and text_of(p).strip():
+                self.set_text(p,title)
+                factor=self.title_fit(p,title,subtitle)
+                if factor<1:
+                    for run in p.iter(W+'r'):
+                        props=run.find(W+'rPr')
+                        if props is None:props=el('rPr');run.insert(0,props)
+                        for name in ('sz','szCs'):
+                            size=props.find(W+name)
+                            if size is None:size=el(name);props.append(size)
+                            size.set(W+'val',str(round(self.sizes.get('vmwHeadline',54)*factor)))
+            elif style=='vmwHeadlinepage2onwards' and text_of(p).strip():self.set_text(p,self.running_head(title))
             elif style=='vmwSubhead' and text_of(p).strip():
                 self.set_text(p,subtitle or '')
                 # A subtitle written as a sentence is longer than the template allows for: set it smaller, so it
                 # keeps to its place on the cover.
-                factor=1 if len(subtitle or '')<=90 else 0.85 if len(subtitle)<=140 else 0.75
+                factor=min(self.sub_fit,1 if len(subtitle or '')<=90 else 0.85 if len(subtitle)<=140 else 0.75)
                 if factor<1:
                     for run in p.iter(W+'r'):
                         props=run.find(W+'rPr')
@@ -449,7 +493,7 @@ class Filler:
         counts={k:sum(1 for kind,_,_ in everything if kind==k) for k in ('h1','h2','h3','body','bullet','number','table')}
         report={'title':title,'subtitle':subtitle,'date':when,'blocks':counts,'pictures':self.pictures,'links':len(self.links),'footnotes':len(notes),
                 'contents_entries':sum(1 for kind,_,words in made if kind in ('h1','h2') and words) if sdt is not None else 0,
-                'closing_section':closing[0][2][0] if closing and closing[0][2] else None,'not_carried':sorted(set(self.dropped)),'guessed':self.guessed,'code_runs':self.code,'subtitle_scale':self.subtitle_scale}
+                'closing_section':closing[0][2][0] if closing and closing[0][2] else None,'not_carried':sorted(set(self.dropped)),'guessed':self.guessed,'code_runs':self.code,'subtitle_scale':self.subtitle_scale,'running_head':self.short_head,'title_scale':self.title_scale}
         expected={'text':[' '.join(w.split()) for _,_,words in everything for w in words],'links':sorted(self.links),'pictures':self.media,'drawings':self.pictures,'footnotes':notes}
         return out.getvalue(),report,expected
 

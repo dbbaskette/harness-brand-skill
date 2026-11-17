@@ -52,8 +52,10 @@ def save(result,directory):
         lines+=['## Document template','',f"Template: **{doc.get('name',doc.get('id','document'))}**. Title: {filled['title']}."+(f" Subtitle: {filled['subtitle']}." if filled.get('subtitle') else ' No subtitle in the source.')+f" Date on the cover: {filled['date']}.",'']
         for kind,where in (result.get('outputs') or {}).items():
             lines+=[('Word file: '+local_link('open',where)) if kind=='word' else '[Google Doc]('+where+')','']
-        if filled.get('guessed'):lines+=['The source has no Title style, so its first heading was taken as the '+' and the line under it as the '.join(filled['guessed'])+'. Check the cover.','']
+        if filled.get('guessed'):lines+=[('The source has no Title style, so its first heading was taken as the title'+(' and the line under it as the subtitle' if 'subtitle' in filled['guessed'] else '') if 'title' in filled['guessed'] else 'The short line under the title was taken as the subtitle')+'. Check the cover.','']
         if filled.get('subtitle_scale',1)<1:lines+=[f"The subtitle is long ({len(filled['subtitle'])} characters), so it is set at {round(filled['subtitle_scale']*100)}% of the template's size to keep its place on the cover. A shorter subtitle reads better; check the cover.",'']
+        if filled.get('title_scale',1)<1:lines+=[f"The title is long ({len(filled['title'])} characters), so on the cover it is set at {round(filled['title_scale']*100)}% of the template's size to leave room for the subtitle. Check the cover.",'']
+        if filled.get('running_head'):lines+=[f"The title is too long for the one-line running head on inside pages, which reads: {filled['running_head']}. The cover has the title in full.",'']
         counts=filled['blocks'];names={'h1':'level-1 headings','h2':'level-2 headings','h3':'level-3 headings','body':'paragraphs','bullet':'bullets','number':'numbered items','table':'tables'}
         lines+=['Placed, each in the template\'s own style: '+', '.join(f"{counts[k]} {names[k]}" for k in names if counts.get(k))+f"; {filled['pictures']} pictures, {filled['links']} links, {filled['footnotes']} footnotes.",'']
         if filled.get('code_runs'):lines+=[f"{filled['code_runs']} runs of code were kept in a fixed-width face (Courier New); the template has no code style of its own.",'']

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.3
+
+- `rebrand run --document`: a short line under the title is taken as the subtitle even
+  when the title has the Title style and the line has no Subtitle style (set in italic,
+  not a full sentence, or followed by a heading or a longer paragraph). The report says so.
+- A title too long for the one-line running head on inside pages is shortened there to its
+  part before a colon or dash, or cut at a word with an ellipsis. The cover keeps it whole.
+- A long title is set smaller on the cover, with the subtitle, so both stay inside the
+  cover's text box. The report gives the sizes used.
+
 ## 1.2.2
 
 - `rebrand run --document`: a long subtitle (over 90 characters) is set at 85% of the
