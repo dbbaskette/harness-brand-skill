@@ -65,6 +65,9 @@ class Source:
             for num in numbering.iter(W+'num'):
                 ref=num.find(W+'abstractNumId')
                 if ref is not None:self.formats[num.get(W+'numId')]=abstract.get(ref.get(W+'val'),{})
+        size=styles.find(W+'docDefaults/'+W+'rPrDefault/'+W+'rPr/'+W+'sz')
+        normal=next((x.find(W+'rPr/'+W+'sz') for x in styles.iter(W+'style') if x.get(W+'default')=='1' and x.get(W+'type')=='paragraph' and x.find(W+'rPr/'+W+'sz') is not None),None)
+        self.default_size=int((normal if normal is not None else size).get(W+'val')) if (normal is not None or size is not None) else 22   # half-points
         self.footnotes={}
         if 'word/footnotes.xml' in self.parts:
             for note in etree.fromstring(self.parts['word/footnotes.xml']).iter(W+'footnote'):
@@ -197,6 +200,22 @@ class Filler:
             # The outermost shape takes the new size; whatever it groups scales with it.
             outer=next((x.find(A+'ext') for x in holder.iter(A+'xfrm') if x.find(A+'ext') is not None),None)
             if outer is not None:outer.set('cx',str(width));outer.set('cy',str(height))
+            # Words inside the drawing (callouts, labels) shrink with it, or they outgrow their boxes:
+            # a group scales its shapes, never the type set in them.
+            for box in holder.iter(W+'txbxContent'):
+                for run in box.iter(W+'r'):
+                    props=run.find(W+'rPr')
+                    if props is None:props=el('rPr');run.insert(0,props)
+                    for name in ('sz','szCs'):
+                        size=props.find(W+name)
+                        if size is None:size=el(name,val=self.source.default_size);props.append(size)
+                        size.set(W+'val',str(max(2,round(int(size.get(W+'val'))*scale))))
+                for spacing in box.iter(W+'spacing'):
+                    for key in ('before','after')+(('line',) if spacing.get(W+'lineRule') in ('exact','atLeast') else ()):
+                        if spacing.get(W+key):spacing.set(W+key,str(round(int(spacing.get(W+key))*scale)))
+            for body in holder.iter('{http://schemas.microsoft.com/office/word/2010/wordprocessingShape}bodyPr'):
+                for key in ('lIns','tIns','rIns','bIns'):
+                    body.set(key,str(round(int(body.get(key,'91440' if key in ('lIns','rIns') else '45720'))*scale)))
         self.drawing+=1;prop=holder.find(WP+'docPr')
         if prop is not None:prop.set('id',str(self.drawing))
         out=el('drawing');out.append(holder)
