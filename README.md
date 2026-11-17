@@ -106,6 +106,18 @@ For a managed copy instead of a pointer, `data --install FOLDER` copies brands i
 `~/Library/Application Support/Harness Brand/brands` on macOS. It does not override
 another configured folder. Linux uses `~/.local/share/harness-brand/brands`.
 
+## Document templates
+
+A pack can also hold Word templates for documents such as a solution brief or a white
+paper, listed under `documents` in `brand.json` and stored in `templates/documents/`:
+
+```sh
+node scripts/harness-brand.mjs documents --brand company
+```
+
+It prints each template, what it is for and the file to start from. Harness Brand does
+not write the document: open the template in Word, or hand its path to the tool that will.
+
 ## Existing decks and documents
 
 One shared worker handles content-preserving rebranding. The selected brand supplies
@@ -116,6 +128,18 @@ See [the workflow](references/rebranding.md) and [profile format](docs/rebrandin
 node scripts/harness-brand.mjs rebrand run 'GOOGLE_FILE_URL' --brand company --review
 node scripts/harness-brand.mjs rebrand status --brand company
 ```
+
+To put a document into one of the brand's document templates (a white paper, a
+solution brief) instead of restyling it in place, name the template. The source can be a
+Google Doc or a local `.docx`; ask for a Word file, a Google Doc, or both:
+
+```sh
+node scripts/harness-brand.mjs rebrand run 'GOOGLE_DOC_URL' --brand company --document white-paper-tech --output both
+```
+
+The source is only read. Its words go into the template's styles behind the template's
+cover, headers, footers and back page. The Word file is the faithful output; Google Docs
+keeps the words, styles, tables and pictures but can drop page furniture such as a footer logo.
 
 Use your existing gcloud login with Drive access. If needed, run
 `gcloud auth login --enable-gdrive-access --force`. No Cloud project or gws setup

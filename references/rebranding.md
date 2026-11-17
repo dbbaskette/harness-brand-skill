@@ -76,3 +76,36 @@ Use the existing intended Google login. If Drive authorization is missing:
 `gcloud auth login --enable-gdrive-access --force`. No Cloud project or gws is needed.
 Local preview requires LibreOffice and Poppler; do not install system applications
 without authorization. Rebranding does not require Harness Slides.
+
+## A document in a brand template
+
+When the person wants a document put into the brand's white paper, solution brief or
+other document template (not just restyled), use the template mode. `harness-brand
+documents --brand B` lists the templates; when the person has not said which, ask, do not
+guess between a brief and a paper.
+
+```sh
+python3 scripts/brand.py 'GOOGLE_DOC_URL_OR_FILE.docx' --document white-paper-tech --output both
+```
+
+`--output` is `word`, `google` or `both` (the default): produce the one(s) asked for. The
+source is read, never edited. The template keeps its cover, running head, footers, back
+page and styles; the source's words replace the sample copy. Bold, italic, underline,
+strike and super/subscript are kept, code keeps a fixed-width face, and every other source
+format is dropped. The run refuses to write anything if text, a link, a picture or a
+footnote would be lost, and checks the Google copy again after import.
+
+Read the report's "Document template" section and tell the person:
+
+- the title and subtitle used, and whether they were guessed (a source with no Title
+  style gives its first heading as the title and a short line under it as the subtitle);
+- anything listed as not carried;
+- that the Word file is the faithful output: its table of contents fills in page numbers
+  when Word updates the field, and the Google copy can lose page furniture (a footer
+  logo) and keeps a contents list without page numbers;
+- any warning that the template is not an official one for the brand.
+
+Look at the rendered pages before calling it done: a long subtitle can run into cover
+artwork, and wide pictures are scaled to the text column. `--review`, `--template-plan`,
+`--verify-copy` and `--dry-run` do not apply to this mode.
+

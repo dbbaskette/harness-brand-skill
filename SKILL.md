@@ -20,6 +20,9 @@ else the folder recorded with `node scripts/harness-brand.mjs data --set FOLDER`
 local brands folder that `data --install FOLDER` copies brands into
 (`~/Library/Application Support/Harness Brand/brands` on a Mac).
 `brands` lists the usable brands and variants; `doctor` says what is missing.
+`documents --brand B` lists a brand's Word document templates (a solution brief, a white
+paper) with what each is for and its file; start a branded document from that file, and
+read each entry's `notes` first (fonts it needs, what is placeholder, whether it is official).
 No company or private repository is required. If the folder is missing, ask for the
 parent folder containing the user's brand packs; see [setup](README.md#your-brands-folder).
 Honor an explicitly chosen brand. Otherwise retain a settled project choice or ask

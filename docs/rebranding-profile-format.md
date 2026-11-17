@@ -46,3 +46,23 @@ revision when available. Branding then works without the original checkout and
 refuses tampered snapshots. Updating profiles is explicit setup, not a runtime fetch.
 Keep brand-specific regression suites with their data repository and run them against
 the shared engine before publishing a profile update.
+
+## Document templates
+
+A profile may offer Word document templates to `rebrand run --document ID`. List them in the
+profile's `brand.json` and seal each file in `manifest.json` under
+`assets/<brand>/documents/`:
+
+```json
+"documents": {
+  "white-paper-tech": { "file": "white-paper-tech-us-letter.docx", "name": "Technical white paper", "official": false }
+}
+```
+
+`official: false` adds a warning to every run that the template was derived and is not the
+brand's own. A template needs two sections (the last carries the back page or legal
+footer), paragraph styles the filler looks for (`vmwbodycopy`, `vmwHeadline`, `vmwSubhead`,
+`vmwHeadlinepage2onwards`, `vmwbullet1`, `vmwbullet2`, `vmwnumbered`, `vmwtableheadingtop`,
+`vmwtablebodycopy`, `Heading1` to `Heading3`; a missing one falls back to body copy), and
+may have a cover and a table of contents before its first page break.
+
