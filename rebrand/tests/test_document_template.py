@@ -93,6 +93,17 @@ class Fill(unittest.TestCase):
         self.assertEqual((report['title'],report['subtitle'],report['guessed']),('The Paper Itself','A short line under it, with no full stop',['title','subtitle']))
         texts=[t for _,t in paragraphs(data)];self.assertNotIn('The Paper Itself',texts);self.assertIn('The opening paragraph ends with a full stop.',texts)
 
+    def test_a_long_subtitle_is_set_smaller_and_a_short_one_is_not(self):
+        def titled(words):
+            d=Document();d.add_paragraph('Title',style='Title');d.add_paragraph(words,style='Subtitle');d.add_heading('Part',1);d.add_paragraph('Words.')
+            out=io.BytesIO();d.save(out);return out.getvalue()
+        _,short,_=D.fill(template(),titled('A short subtitle'))
+        self.assertEqual(short['subtitle_scale'],1)
+        data,long,_=D.fill(template(),titled('A subtitle written as a whole sentence, which goes on well past the hundred and forty characters a cover has room for, and then a little further still.'))
+        self.assertEqual(long['subtitle_scale'],0.75)
+        header=next(n for n in zipfile.ZipFile(io.BytesIO(data)).namelist() if 'header' in n and b'whole sentence' in zipfile.ZipFile(io.BytesIO(data)).read(n))
+        self.assertIn(b'w:sz w:val="21"',zipfile.ZipFile(io.BytesIO(data)).read(header))   # 28 half-points by default, at 75%
+
     def test_bold_is_kept_and_other_formatting_is_dropped(self):
         def styled(d):
             run=d.add_paragraph('Plain ').add_run('loud');run.bold=True;run.font.name='Comic Sans MS';run.font.size=__import__('docx').shared.Pt(30)
