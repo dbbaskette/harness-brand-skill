@@ -445,7 +445,7 @@ class Filler:
         self.parts['word/footnotes.xml']=etree.tostring(root,xml_declaration=True,encoding='UTF-8',standalone=True)
         return texts
 
-    def fill(self,name=None,when=None):
+    def fill(self,name=None,when=None,closing_from=None):
         children=list(self.body);prototype=next((c for c in children if c.tag==W+'tbl'),None)
         made,title,subtitle=self.blocks(prototype)
         if not made:raise TemplateError('The source has no text to place.')
@@ -460,9 +460,16 @@ class Filler:
         for index,child in enumerate(children):
             if index>head_end and child is not split and child is not final:self.body.remove(child)
         closing=[]
+        if sdt is not None and closing_from:raise TemplateError('closing_from applies only to a template without a back page.')
         if sdt is None:   # no back page: the last section carries the legal footer, so the last part of the text goes there
             starts=[i for i,(kind,_,_) in enumerate(made) if kind=='h1']
-            if len(starts)>=2:closing=made[starts[-1]:];made=made[:starts[-1]]
+            if closing_from:   # the caller says which section opens that page
+                wanted=' '.join(closing_from.split())
+                at=[i for i,(kind,_,words) in enumerate(made) if kind in ('h1','h2') and words and ' '.join(words[0].split())==wanted]
+                if len(at)!=1 or at[0]<=(starts[0] if starts else 0):
+                    raise TemplateError(f'closing_from names the heading {closing_from!r}; it must match exactly one heading after the first section.')
+                closing=made[at[0]:];made=made[:at[0]]
+            elif len(starts)>=2:closing=made[starts[-1]:];made=made[:starts[-1]]
         position=self.body.index(split)
         for offset,(_,node,_) in enumerate(made):self.body.insert(position+offset,node)
         for _,node,_ in closing:final.addprevious(node)
@@ -494,6 +501,9 @@ class Filler:
         report={'title':title,'subtitle':subtitle,'date':when,'blocks':counts,'pictures':self.pictures,'links':len(self.links),'footnotes':len(notes),
                 'contents_entries':sum(1 for kind,_,words in made if kind in ('h1','h2') and words) if sdt is not None else 0,
                 'closing_section':closing[0][2][0] if closing and closing[0][2] else None,'not_carried':sorted(set(self.dropped)),'guessed':self.guessed,'code_runs':self.code,'subtitle_scale':self.subtitle_scale,'running_head':self.short_head,'title_scale':self.title_scale}
+        report['headings']=[' '.join(words[0].split()) for kind,_,words in everything if kind in ('h1','h2') and words]
+        report['captions']=[' '.join(everything[i+1][2][0].split()) for i,(kind,node,_) in enumerate(everything[:-1])
+                            if kind!='table' and node.find('.//'+W+'drawing') is not None and everything[i+1][2]]
         expected={'text':[' '.join(w.split()) for _,_,words in everything for w in words],'links':sorted(self.links),'pictures':self.media,'drawings':self.pictures,'footnotes':notes}
         return out.getvalue(),report,expected
 
@@ -518,10 +528,11 @@ def placed(data,expected):
     return problems
 
 
-def fill(template,source,*,name=None,when=None):
+def fill(template,source,*,name=None,when=None,closing_from=None):
     """(document bytes, report, what a copy of it must still contain). Raises TemplateError when
-    anything the source says could not be placed."""
-    data,report,expected=Filler(template,source).fill(name,when)
+    anything the source says could not be placed. closing_from names the heading that opens the
+    final page of a template without a back page; without it the last level-1 section does."""
+    data,report,expected=Filler(template,source).fill(name,when,closing_from)
     problems=placed(data,expected)
     if problems:raise TemplateError('The filled template lost content: '+'; '.join(problems)+'. No output was written.')
     report['content_verified']=True
