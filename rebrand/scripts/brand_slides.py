@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Single-brand identity pass using the vendored formatting engine."""
 from __future__ import annotations
-import argparse,copy,hashlib,io,json,re,sys
+import argparse,copy,hashlib,json,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent/'vendor'))
 import identity_engine as engine
