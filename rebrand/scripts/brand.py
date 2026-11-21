@@ -267,7 +267,7 @@ def brand(api, source, *, tidy=False, dry_run=False, folder=None, progress=None,
         return completed(result)
 
 
-def document(api, source, ident, *, output='both', folder=None, name=None, run_dir=None, progress=None, when=None):
+def document(api, source, ident, *, output='both', folder=None, name=None, run_dir=None, progress=None, when=None, layout=None):
     """Flow a Google Doc or a local .docx into one of the brand's Word document templates."""
     from brand_config import BRAND, PROFILE
     from document_template import fill, returned, TemplateError
@@ -279,8 +279,13 @@ def document(api, source, ident, *, output='both', folder=None, name=None, run_d
         if progress:progress({'status':'progress','stage':label,'elapsed_seconds':round(time.monotonic()-started,2)})
     stage('reading_source')
     local=Path(source).expanduser()
-    if local.suffix.lower()=='.docx' and local.is_file():
-        original=local.read_bytes();title=local.stem;origin=None
+    if local.suffix.lower() in ('.docx','.md') and local.is_file():
+        if local.suffix.lower()=='.md':
+            from markdown_source import to_docx
+            try:original=to_docx(local.read_text(encoding='utf-8'),local.parent)
+            except ValueError as exc:raise BrandError(str(exc)) from None
+        else:original=local.read_bytes()
+        title=local.stem;origin=None
         if output!='word' and api is None:raise BrandError('A Google copy needs Google access.')
     else:
         origin=file_id(source);meta=api.metadata(origin);native=meta.get('mimeType')
@@ -293,7 +298,19 @@ def document(api, source, ident, *, output='both', folder=None, name=None, run_d
     (directory/'source.docx').write_bytes(original)
     stage('filling_template')
     template=(PROFILE/'documents'/catalog[ident]['file']).read_bytes()
-    try:data,report,expected=fill(template,original,name=title,when=when)
+    placed=None
+    try:
+        data,report,expected=fill(template,original,name=title,when=when,closing_from=(layout or {}).get('closing_from'))
+        if layout is not None:
+            from document_layout import apply, kept
+            from brand_icons import library, paint
+            def icon_png(icon):
+                if icon not in library():raise TemplateError(f'The icon library has no icon {icon}.')
+                return paint(library()[icon])
+            stage('setting_layout')
+            data,placed,words=apply(data,template,layout,icon_png)
+            problems=returned(data,expected)+kept(data,words)
+            if problems:raise TemplateError('The layout lost content: '+'; '.join(problems)+'. No output was written.')
     except TemplateError as exc:raise BrandError(str(exc)) from None
     # Name the brand in the result: the same source is often put into several brands' templates.
     final=name or (title if title.endswith(f"-{BRAND['id']}-branded") else f"{title}-{BRAND['id']}-branded")
@@ -305,6 +322,17 @@ def document(api, source, ident, *, output='both', folder=None, name=None, run_d
     if output in ('word','both'):
         path=directory/(re.sub(r'[^A-Za-z0-9 ._()-]+','-',final).strip() or 'document')
         path=path.with_name(path.name+'.docx');path.write_bytes(data);result['outputs']['word']=str(path.resolve());result['preview_file']=str(path.resolve())
+        if placed is not None:
+            from document_pages import page_texts, locate
+            stage('rendering_pages')
+            pdf=path.with_suffix('.pdf');pages=page_texts(path,pdf)
+            if pages is None:
+                result['layout']={**placed,'rendered':False}
+                result['warnings'].append('LibreOffice or pdftotext was not found, so the pages were not rendered: where the sidebars and page breaks fall is unchecked.')
+            else:
+                result['layout']={**placed,'rendered':True,**locate(pages,report,layout)};result['outputs']['pdf']=str(pdf.resolve())
+                if result['layout']['sidebars_sharing_a_page']:
+                    result['warnings'].append('Two sidebars landed on page '+', '.join(map(str,result['layout']['sidebars_sharing_a_page']))+' and will overlap; move one to a later heading or add a page break.')
     if output in ('google','both'):
         stage('creating_native_copy')
         native='application/vnd.google-apps.document';office=FORMATS[native][1]
@@ -326,9 +354,10 @@ def document(api, source, ident, *, output='both', folder=None, name=None, run_d
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--brand',help='Explicit installed brand ID; required unless provided by a brand shortcut')
-    parser.add_argument('source',help='Google Slides/Docs URL or Drive file ID; with --document, also a local .docx file')
+    parser.add_argument('source',help='Google Slides/Docs URL or Drive file ID; with --document, also a local .docx or .md file')
     parser.add_argument('--document',help="Flow the source into one of the brand's Word document templates, by ID (for example white-paper-tech)")
     parser.add_argument('--output',choices=('word','google','both'),default='both',help='With --document: a Word file, a Google Doc, or both (default)')
+    parser.add_argument('--layout',help='With --document: a JSON file naming what goes in the template\'s sidebars, icon row and page breaks; see references/rebranding.md')
     parser.add_argument('--preview',help='Save the locally branded PPTX/DOCX for visual review (combine with --dry-run)')
     parser.add_argument('--template-plan',help='Inspected slide roles and text shape IDs; see references/template-alignment.md')
     parser.add_argument('--icon-map',help='JSON map of inspected functional icons to bundled icon IDs; see references/icons.md')
@@ -347,9 +376,12 @@ def main(argv=None):
     try:
         if args.brand:os.environ['HARNESS_REBRAND_BRAND']=args.brand
         from brand_config import ASSET_VERSION  # Fails before any Google access.
-        local_source=bool(args.document) and Path(args.source).expanduser().suffix.lower()=='.docx' and Path(args.source).expanduser().is_file()
+        local_source=bool(args.document) and Path(args.source).expanduser().suffix.lower() in ('.docx','.md') and Path(args.source).expanduser().is_file()
         source=args.source if local_source else file_id(args.source)
         if args.document and (args.review or args.verify_copy or args.template_plan or args.dry_run):raise BrandError('--document does not combine with --review, --verify-copy, --template-plan or --dry-run.')
+        if args.layout and not args.document:raise BrandError('--layout needs --document.')
+        if args.layout and args.output=='google':raise BrandError('--layout needs a Word file: use --output word or both.')
+        layout=json.loads(Path(args.layout).read_text()) if args.layout else None
         template_plan=json.loads(Path(args.template_plan).read_text()) if args.template_plan else None
         icon_map=json.loads(Path(args.icon_map).read_text()) if args.icon_map else None
         if args.verify_copy and args.review:raise BrandError('--verify-copy is content-only; use visual_review.py to review an exported copy.')
@@ -370,7 +402,7 @@ def main(argv=None):
             def progress(event):
                 if event.get('status')=='copy_created':(run_dir/'checkpoint.json').write_text(json.dumps(event))
                 print(json.dumps(event),file=sys.stderr,flush=True)
-            result=document(api,source,args.document,output=args.output,folder=args.folder,name=args.name,run_dir=run_dir,progress=progress)
+            result=document(api,source,args.document,output=args.output,folder=args.folder,name=args.name,run_dir=run_dir,progress=progress,layout=layout)
         elif args.verify_copy:
             result=verify_copy(api,source,args.verify_copy,args.remove_brand_shape,icon_map,template_plan)
         else:
