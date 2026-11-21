@@ -57,6 +57,39 @@ class Assets(unittest.TestCase):
             paths=list(pool.map(lambda _:A.install(self.data,'example'),range(3)))
         self.assertEqual(len(set(paths)),1);A.installed()
         self.assertFalse(list(A.cache_folder().glob('.install-*')))
+    def installed_worker(self,ident):
+        """A worker folder as the installer keeps it: <shared>/versions/<id>/rebrand, with current pointing at <id>."""
+        shared=self.root.resolve()/'Harness Brand';worker=shared/'versions'/ident/'rebrand';worker.mkdir(parents=True)
+        current=shared/'current'
+        if current.is_symlink():current.unlink()
+        current.symlink_to(f'versions/{ident}')
+        return shared,worker
+    def test_installed_paths_are_given_through_current_and_runs_are_kept_beside_the_versions(self):
+        shared,worker=self.installed_worker('1.4.0-aaaaaaaa')
+        self.assertEqual(A.installation(worker),(shared/'current/rebrand',shared))
+        self.assertEqual(A.runs_folder(worker),shared/'rebrand-runs')
+        self.assertEqual(A.address(worker/'.state/assets/x',worker),shared/'current/rebrand/.state/assets/x')
+        with patch.dict(os.environ):
+            del os.environ['HARNESS_REBRAND_STATE']
+            A.install(self.data,'example',root=worker);paths=A.info(worker,'example')
+        for key in ('snapshot','rules','references'):
+            self.assertTrue(paths[key].startswith(str(shared/'current/rebrand/.state/assets')),paths[key])
+            self.assertNotIn('/versions/',paths[key])
+        self.assertEqual(Path(paths['rules']).read_bytes(),b'rules')
+        # A checkout, or a copy that current does not select, is itself.
+        loose=self.root.resolve()/'checkout/rebrand';loose.mkdir(parents=True)
+        self.assertEqual(A.installation(loose),(loose,None));self.assertEqual(A.runs_folder(loose),loose/'runs')
+        other=shared/'versions/0.0.1-bbbbbbbb/rebrand';other.mkdir(parents=True)
+        self.assertEqual(A.installation(other),(other,None))
+    def test_after_an_update_a_brand_not_set_up_names_the_one_command(self):
+        with patch.dict(os.environ):
+            del os.environ['HARNESS_REBRAND_STATE']
+            shared,old=self.installed_worker('1.4.0-aaaaaaaa');A.install(self.data,'example',root=old)
+            _,new=self.installed_worker('1.5.0-cccccccc');shutil.rmtree(old.parent)
+            with self.assertRaisesRegex(A.AssetError,'example is not set up for rebranding in this version of Harness Brand. Set it up with: node "'+str(shared/'current/scripts/harness-brand.mjs')+'" rebrand setup'):
+                A.info(new,'example')
+            A.install(self.data,'example',root=new)
+            self.assertTrue(A.info(new,'example')['snapshot'].startswith(str(shared/'current/rebrand/.state/assets')))
     def test_only_rebranding_profiles_are_discovered(self):
         (self.data/'authoring-only/pack').mkdir(parents=True)
         self.assertEqual(A.available(self.data),['example'])

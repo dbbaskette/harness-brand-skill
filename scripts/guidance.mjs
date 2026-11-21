@@ -1,16 +1,15 @@
 // harness-brand guidance: Harness Slides' public slide guidance for a deck, started or resumed in
 // the deck's project, with the brand's own entry, review guide, checkpoints and, once a brand is
 // named, the worker guidance a studio forwards to every composer unchanged.
-import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { CLI, ROOT, place } from './lib/address.mjs';
 import { choose, dataFolder } from './lib/worker/brands.mjs';
 import { buildContract } from './lib/worker/contract.mjs';
-import { findSlides, slidesModule } from './lib/worker/slides.mjs';
+import { slidesModule } from './lib/worker/slides.mjs';
 import { workerText } from './lib/worker/looks.mjs';
+import { VERSION } from './version.mjs';
 
 const USAGE = 'Usage: harness-brand guidance start|resume --skill slides --project DIR [--task ID] [--brand BRAND [--variant VARIANT]]';
-const path = (relative) => fileURLToPath(new URL(`../${relative}`, import.meta.url));
-const CLI = path('scripts/harness-brand.mjs');
 
 export const CHECKPOINTS = [
   'Intake, once, before the draft: the brand, live talk or handout (default live for a presentation), and the research offer.',
@@ -23,9 +22,13 @@ async function brandBlock(chosen) {
   const brands = dataFolder();
   const data = brands ? ` --data "${brands}"` : '';
   const brand = chosen ? `--brand ${chosen.id} --variant ${chosen.variant}` : '--brand BRAND';
+  // Every path here names Harness Brand by its stable address (see lib/address.mjs), so a caller
+  // may keep these commands across an update.
   const block = {
-    entry: path('references/harness-slides.md'),
-    review: path('references/slide-review.md'),
+    runtime: ROOT,
+    runtimeVersion: VERSION,
+    entry: place('references/harness-slides.md'),
+    review: place('references/slide-review.md'),
     commands: {
       contract: `node "${CLI}" contract export --medium slides ${brand} --delivery live|reading --output NEW_DIR${data}`,
       icons: `node "${CLI}" icons ${brand} --query "<concept>" --limit 3${data}`,
@@ -56,10 +59,12 @@ export async function main(args) {
   // An unknown brand is refused before any guidance task starts.
   const chosen = values.brand ? choose(dataFolder(), values.brand, values.variant) : null;
   if (chosen && !chosen.brand.variants[chosen.variant].slides) throw new Error(`The ${chosen.name} brand has no slides.`);
-  const { root } = findSlides();
+  // Harness Slides names its own runtime: no folder is passed in, so the `runtime` it returns is
+  // the one installed now, at the address it keeps across updates. Its result is passed on whole,
+  // with the `notice` it adds when saved work continues on another version than it started on.
   const helper = await slidesModule('scripts/sync-guidance.mjs');
-  const result = action === 'start' ? await helper.start({ project: values.project, runtime: root })
-    : await helper.resume({ project: values.project, task: values.task, runtime: root });
+  const result = action === 'start' ? await helper.start({ project: values.project })
+    : await helper.resume({ project: values.project, task: values.task });
   result.brand = await brandBlock(chosen);
   console.log(JSON.stringify(result, null, 2));
   return 0;

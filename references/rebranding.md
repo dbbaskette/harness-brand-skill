@@ -69,8 +69,17 @@ node scripts/harness-brand.mjs rebrand setup --data /path/to/brands
 This verifies sealed files and records a local snapshot for each supported brand.
 Runtime checks those snapshots and never fetches or silently updates brand data.
 A profile may provide a small named skill shortcut; all shortcuts use this same
-worker and Python environment. Updating a checkout does not change rebranding until
-setup is run again. Reports record the worker version and asset identity.
+worker and Python environment, and are linked through Harness Brand's installed
+address (`…/Harness Brand/current/brand-skills/<name>`), so an update leaves the
+links as they are.
+
+The Python environment, the snapshots and the shortcuts belong to the installed copy
+of Harness Brand. Installing an update sets them up again; when it did not, `rebrand
+run` and `rebrand status` refuse and name the command above in full. Nothing a run
+saved is tied to the version that made it: reports record the worker version and
+asset identity for information only. A run given no `--run-dir` keeps its report and
+files in `rebrand-runs/` beside the installed copy, where an update leaves them.
+`rebrand status` gives the rulebook and references through the installed address.
 
 Use the existing intended Google login. If Drive authorization is missing:
 `gcloud auth login --enable-gdrive-access --force`. No Cloud project or gws is needed.

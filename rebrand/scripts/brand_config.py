@@ -1,4 +1,4 @@
-"""Brand data from the skill's verified, locked local snapshot."""
+"""Brand data from the skill's verified local snapshot."""
 import json
 from pathlib import Path
 from brand_assets import installed, read_lock

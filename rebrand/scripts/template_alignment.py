@@ -1,4 +1,4 @@
-"""Apply an inspected role/shape plan using the locked native template.
+"""Apply an inspected role/shape plan using the snapshot's native template.
 
 The plan identifies semantic roles; it is not inferred from text size or slide order.
 No text is rewritten and no font is reduced to fit. Unmapped content stays reported.

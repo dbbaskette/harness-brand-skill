@@ -3,8 +3,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { ROOT } from './lib/address.mjs';
 import { dataFolder, listPacks, missingData } from './lib/worker/brands.mjs';
 import { findTool } from './lib/pack/previews.mjs';
 import { findSlides, MINIMUM } from './lib/worker/slides.mjs';
@@ -50,7 +50,7 @@ export function report() {
   return {
     profile: 'presentation',
     ok,
-    installation: { version: VERSION, root: fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, ''), data: brands },
+    installation: { version: VERSION, root: ROOT, data: brands },
     checks,
     ready: ok,
     capabilities,

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Install Harness Brand for Claude Code and Codex from this release folder. Never prompts.
+// Install Harness Brand for Claude Code and Codex from this folder, a checkout of the
+// repository's main branch. Never prompts.
 // --research is accepted, as Marketing Studio's installers pass it, and nothing is done with it.
-import { realpathSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, realpathSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { install, plan } from './lib/install.mjs';
@@ -40,15 +41,21 @@ export function run(args, { confirm, askData } = {}) {
     for (const step of plan(source)) console.log(`${step.label}: ${step.action}${step.reason ? ` (${step.reason})` : ''} at ${step.root}`);
     return 0;
   }
-  const { steps, root: installedRoot } = install(source, { replace: values.replace, data: checked?.folder, replaceData });
+  // `runtime` is <shared>/current: what is run from here on, and the only path that is printed.
+  const { steps, runtime, shortcuts } = install(source, { replace: values.replace, data: checked?.folder, replaceData });
   if (replaceData && process.env.HARNESS_BRAND_DATA) {
     console.log('HARNESS_BRAND_DATA is set in this shell and overrides the saved folder. Unset it to use the saved choice.');
   }
+  const command = join(runtime, 'scripts', 'harness-brand.mjs');
+  // The rebranding runtime, its brand snapshots and the brand shortcuts live with the installed
+  // copy, so each install sets them up again for the copy it just installed.
   if (values.rebrand === 'auto' && checked && profiles(checked.folder).length) {
-    const setup = spawnSync(process.execPath, [join(installedRoot, 'scripts', 'harness-brand.mjs'), '--data', checked.folder,
+    const setup = spawnSync(process.execPath, [command, '--data', checked.folder,
       'rebrand', 'setup', ...(values['replace-brand-shortcuts'] ? ['--replace-brand-shortcuts'] : [])], { stdio: 'inherit' });
-    if (setup.error || setup.status !== 0) throw new Error('Harness Brand is installed, but rebranding setup is incomplete. Resolve the reported problem and run rebrand setup again.');
+    if (setup.error || setup.status !== 0) throw new Error(`Harness Brand is installed, but rebranding setup is incomplete. Resolve the reported problem and run it again: node "${command}" rebrand setup`);
   }
+  const unset = [...new Set(shortcuts.filter((link) => !existsSync(link)).map((link) => basename(link)))];
+  if (unset.length) console.log(`The brand shortcut${unset.length === 1 ? '' : 's'} ${unset.join(', ')} ${unset.length === 1 ? 'is' : 'are'} not set up in this version yet. Set ${unset.length === 1 ? 'it' : 'them'} up with: node "${command}" rebrand setup`);
   try {
     const slides = findSlides();
     console.log(`Harness Slides ${slides.version} is installed at ${slides.root}.`);

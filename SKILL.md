@@ -15,6 +15,12 @@ Run every command from this skill's folder:
 node scripts/harness-brand.mjs <command> [options]
 ```
 
+The commands and paths Harness Brand prints (in `guidance`, in an exported contract, in
+`doctor`) name its installed address, `…/Harness Brand/current`, which stays the same
+across updates and always runs the installed code. Use them as given: do not resolve that
+path or this skill's link to the folder behind it, which the next update removes. Nothing
+saved in a project is tied to the version that wrote it.
+
 The brand commands find the brands folder from `--data FOLDER`, else `HARNESS_BRAND_DATA`,
 else the folder recorded with `node scripts/harness-brand.mjs data --set FOLDER`, else the
 local brands folder that `data --install FOLDER` copies brands into
@@ -34,7 +40,9 @@ Load only the selected brand's guidance and the references needed for this task.
 Read [references/harness-slides.md](references/harness-slides.md) before building a deck. In short:
 
 1. `guidance start --skill slides --project DIR --brand BRAND` starts Harness Slides' public
-   guidance with the brand's own steps, commands and worker guidance.
+   guidance with the brand's own steps, commands and worker guidance. Keep its `task`; in a
+   later session `guidance resume --task ID` returns the `runtime` to use now, and a
+   `notice` to show the person when Harness Slides was updated since the deck was started.
 2. After the person approves the draft, `look samples` draws one slide in each of the brand's
    deck directions; `look choose` records their pick in their words.
 3. `contract export --medium slides --brand BRAND --delivery live|reading --output NEW_DIR`

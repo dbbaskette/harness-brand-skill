@@ -7,6 +7,31 @@ ROOT=Path(__file__).resolve().parents[1]
 
 class AssetError(ValueError):pass
 
+def installation(root=ROOT):
+    """(the worker's folder as callers are given it, the shared place it is installed in or None).
+    The installer keeps Harness Brand in <shared>/versions/<id> and points <shared>/current at it;
+    an update moves the pointer and removes the old folder. Python resolves links, so this code
+    sees itself in the version folder: any path it hands out names <shared>/current instead."""
+    root=Path(root).resolve();skill=root.parent;shared=skill.parent.parent;current=shared/'current'
+    try:
+        if skill.parent.name=='versions' and current.is_symlink() and current.resolve()==skill:return current/root.name,shared
+    except OSError:pass
+    return root,None
+
+def address(path,root=ROOT):
+    """A path inside this worker, as callers are given it: through <shared>/current when installed."""
+    try:return installation(root)[0]/Path(path).relative_to(Path(root).resolve())
+    except ValueError:return Path(path)
+
+def runs_folder(root=ROOT):
+    """Where a run given no --run-dir keeps its report and files: beside the versions when
+    installed, so an update never removes a person's work; runs/ of a checkout otherwise."""
+    shared=installation(root)[1]
+    return shared/'rebrand-runs' if shared else Path(root)/'runs'
+
+def setup_command(root=ROOT):
+    return f'node "{installation(root)[0].parent/"scripts"/"harness-brand.mjs"}" rebrand setup'
+
 def digest(data):return hashlib.sha256(data).hexdigest()
 
 def read_json(path):
@@ -34,14 +59,17 @@ def cache_folder(root=ROOT):return state_folder(root)/'assets'
 
 def read_lock(root=ROOT,brand=None):
     name=identity(brand)
-    lock=read_json(state_folder(root)/'locks'/f'{name}.json')
+    record=state_folder(root)/'locks'/f'{name}.json'
+    # Snapshots are taken for each installed release: after an update that took none, name the one command.
+    if not record.is_file():raise AssetError(f'{name} is not set up for rebranding in this version of Harness Brand. Set it up with: {setup_command(root)}')
+    lock=read_json(record)
     if (not isinstance(lock,dict) or lock.get('schema')!=1 or lock.get('brand')!=name
         or not re.fullmatch(r'[a-f0-9]{64}',str(lock.get('sha256',''))) or lock.get('manifest')!=f'{name}/rebrand/manifest.json'):
-        raise AssetError('Unsupported installed asset lock. Run rebrand setup again with the selected brands folder.')
+        raise AssetError('Unsupported installed asset record. Run rebrand setup again with the selected brands folder.')
     return lock
 
 def parse_manifest(raw,lock):
-    if digest(raw)!=lock['sha256']:raise AssetError('Brand manifest does not match the installed asset lock.')
+    if digest(raw)!=lock['sha256']:raise AssetError('Brand manifest does not match the installed asset record.')
     try:m=json.loads(raw)
     except ValueError:raise AssetError('Invalid brand manifest JSON.') from None
     if not isinstance(m,dict) or m.get('schema')!=1 or m.get('brand')!=lock['brand'] or not isinstance(m.get('files'),dict):
@@ -121,7 +149,7 @@ def install(data=None,brand=None,*,root=ROOT):
     return target
 
 def info(root=ROOT,brand=None):
-    lock=read_lock(root,brand);snapshot=installed(root,brand)
+    lock=read_lock(root,brand);snapshot=address(installed(root,brand),root)
     return {**lock,'snapshot':str(snapshot),'rules':str(snapshot/f"assets/{lock['brand']}/rules.md"),'references':str(snapshot/'references/brand')}
 
 def main():

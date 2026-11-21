@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Package a release: harness-brand-<version>-mac.zip, with the skill folder harness-brand/ at its
-// root, and harness-brand-<version>-mac.zip.sha256 beside it ("<sha256>  <zip name>"), as Marketing
-// Studio's installer downloads and checks them.
+// Package this checkout: harness-brand-<version>-mac.zip, with the skill folder harness-brand/ at its
+// root, and harness-brand-<version>-mac.zip.sha256 beside it ("<sha256>  <zip name>"). Harness Brand is
+// installed from the repository's main branch; the ZIP is for a computer that cannot clone it.
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';

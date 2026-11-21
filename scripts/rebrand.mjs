@@ -1,13 +1,15 @@
 // Optional Python worker for content-preserving rebranding. Brand identity comes only from local profiles.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, symlinkSync, lstatSync, unlinkSync, realpathSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, symlinkSync, lstatSync, unlinkSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
+import { CLI, ROOT, SHARED } from './lib/address.mjs';
 import { dataFolder } from './lib/worker/brands.mjs';
-import { targets } from './lib/install.mjs';
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+import { leads, linkOf, sharedRoot, targets } from './lib/install.mjs';
+// ROOT is this Harness Brand's stable address (<shared>/current when installed): the worker is run
+// from it and every link made here is written through it, never through a version folder.
 const WORKER = join(ROOT, 'rebrand');
+const SETUP = `node "${CLI}" rebrand setup`;
 const USAGE = 'Usage: harness-brand rebrand setup [--brand ID] [--replace-brand-shortcuts] | run SOURCE --brand ID [--review] [--document ID [--output word|google|both]] | status --brand ID | icons --brand ID search WORDS';
 
 export function profiles(data = dataFolder()) {
@@ -21,7 +23,8 @@ function execute(command, args, options = {}) {
 }
 function python() {
   const path = join(WORKER, '.venv', 'bin', 'python3');
-  if (!existsSync(path)) throw new Error('Set up the optional rebranding runtime first: node scripts/harness-brand.mjs rebrand setup');
+  // The runtime is set up for each installed release: after an update that did not, this names the one command.
+  if (!existsSync(path)) throw new Error(`Rebranding is not set up for this version of Harness Brand. Set it up with: ${SETUP}`);
   return path;
 }
 function snapshot(brand) {
@@ -29,7 +32,12 @@ function snapshot(brand) {
   return JSON.parse(result.stdout);
 }
 const managedShortcut = (path, skill) => { try { const meta = JSON.parse(readFileSync(join(path, '.harness-brand-shortcut.json'), 'utf8')); return meta.owner === 'harness-brand' && meta.skill === skill; } catch { return false; } };
-const pointsTo = (path, target) => { try { return realpathSync(path) === realpathSync(target); } catch { return false; } };
+const inside = (path) => path === ROOT || path.startsWith(ROOT + sep);
+/** What a link at `link` says to reach `target`: a relative path when both are inside this Harness
+ *  Brand, so the release folder holds together however it is reached; else the target as given. */
+const written = (link, target) => (inside(link) && inside(target) ? relative(dirname(link), target) : target);
+/** Whether a link leads into this installation: `current`, or a version folder an update removed. */
+const ours = (link) => { const says = linkOf(link); return says !== null && SHARED !== null && [SHARED, sharedRoot()].some((shared) => leads(link, says, shared).to !== 'elsewhere'); };
 
 export function installShortcuts(names, { replace = false } = {}) {
   // Read only verified snapshot metadata; profiles cannot supply executable launcher code.
@@ -45,7 +53,8 @@ export function installShortcuts(names, { replace = false } = {}) {
     const links = targets().map(t => join(t.root, '..', entry.skill));
     for (const link of links) {
       let stat; try { stat = lstatSync(link); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-      if (stat && !pointsTo(link, alias) && (!stat.isSymbolicLink() || (!replace && !managedShortcut(link, entry.skill)))) {
+      // A link into this installation is replaced freely, a dangling one from a removed version included; anything else is someone else's.
+      if (stat && linkOf(link) !== alias && !ours(link) && (!stat.isSymbolicLink() || (!replace && !managedShortcut(link, entry.skill)))) {
         throw new Error(`${link} already exists. Preserve any local files; use --replace-brand-shortcuts to replace old shortcut symlinks after migration.`);
       }
     }
@@ -57,13 +66,17 @@ export function installShortcuts(names, { replace = false } = {}) {
     writeFileSync(join(alias, 'SKILL.md'), readFileSync(join(info.snapshot, 'references', 'SKILL.md')));
     writeFileSync(join(alias, 'scripts', 'brand.py'), `#!/usr/bin/env python3\nimport os,sys\nfrom pathlib import Path\nroot=Path(__file__).resolve().parents[3]\nif '--brand' in sys.argv or any(a.startswith('--brand=') for a in sys.argv):sys.exit('This shortcut fixes its brand; use Harness Brand directly to choose another.')\nentry=root/'rebrand/scripts/brand.py'\npython=root/'rebrand/.venv/bin/python3'\nos.execv(str(python),[str(python),str(entry),'--brand',${JSON.stringify(brand)},*sys.argv[1:]])\n`);
     mkdirSync(join(alias, 'references'), { recursive: true });
-    const inside = [[join(alias, '.venv'), join(WORKER, '.venv')],
+    const within = [[join(alias, '.venv'), join(WORKER, '.venv')],
       [join(alias, 'references', 'rebranding.md'), join(ROOT, 'references', 'rebranding.md')],
       [join(alias, 'references', 'brand'), join(info.snapshot, 'references', 'brand')]];
-    for (const [link, target] of [...inside, ...links.map(link => [link, alias])]) {
-      if (pointsTo(link, target)) continue;
+    // The skills folders link to the shortcut through the stable address, so they survive an update
+    // (which makes the shortcut again); inside the shortcut, links are relative.
+    for (const [link, target] of [...within, ...links.map(link => [link, alias])]) {
+      const says = written(link, target);
+      if (linkOf(link) === says) continue;
       try { const stat = lstatSync(link); if (!stat.isSymbolicLink()) throw new Error(`Refusing to overwrite ${link}`); unlinkSync(link); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-      symlinkSync(target, link);
+      mkdirSync(dirname(link), { recursive: true });
+      symlinkSync(says, link);
     }
     console.log(`${entry.name}: ${entry.skill} uses the shared Harness Brand worker.`);
   }
