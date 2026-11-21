@@ -51,6 +51,7 @@ def save(result,directory):
         doc=result.get('document',{})
         lines+=['## Document template','',f"Template: **{doc.get('name',doc.get('id','document'))}**. Title: {filled['title']}."+(f" Subtitle: {filled['subtitle']}." if filled.get('subtitle') else ' No subtitle in the source.')+f" Date on the cover: {filled['date']}.",'']
         for kind,where in (result.get('outputs') or {}).items():
+            if kind=='pdf':continue
             lines+=[('Word file: '+local_link('open',where)) if kind=='word' else '[Google Doc]('+where+')','']
         if filled.get('guessed'):lines+=[('The source has no Title style, so its first heading was taken as the title'+(' and the line under it as the subtitle' if 'subtitle' in filled['guessed'] else '') if 'title' in filled['guessed'] else 'The short line under the title was taken as the subtitle')+'. Check the cover.','']
         if filled.get('subtitle_scale',1)<1:lines+=[f"The subtitle is long ({len(filled['subtitle'])} characters), so it is set at {round(filled['subtitle_scale']*100)}% of the template's size to keep its place on the cover. A shorter subtitle reads better; check the cover.",'']
@@ -60,6 +61,17 @@ def save(result,directory):
         lines+=['Placed, each in the template\'s own style: '+', '.join(f"{counts[k]} {names[k]}" for k in names if counts.get(k))+f"; {filled['pictures']} pictures, {filled['links']} links, {filled['footnotes']} footnotes.",'']
         if filled.get('code_runs'):lines+=[f"{filled['code_runs']} runs of code were kept in a fixed-width face (Courier New); the template has no code style of its own.",'']
         if filled.get('contents_entries'):lines+=[f"Table of contents: {filled['contents_entries']} entries written without page numbers; Word fills them in when it updates the field.",'']
+        placed=result.get('layout')
+        if placed:
+            count=lambda value:len(value) if isinstance(value,list) else (value or 0)   # a rendered report lists pages where an unrendered one counts
+            lines+=['### Layout','',f"Set from the layout file: {count(placed.get('sidebars'))} sidebars, {count(placed.get('icons'))} icons, {count(placed.get('page_breaks'))} page breaks, {count(placed.get('figures'))} figures kept with their captions.",'']
+            if placed.get('rendered'):
+                lines+=[f"Rendered with LibreOffice: {placed['pages']} pages. Sidebars on pages "+', '.join(str(b['page'] or 'not found') for b in placed['sidebars'])+'. '
+                        +('The subtitle fits one line. ' if placed.get('subtitle_on_one_line') else 'The subtitle wraps onto a second line. ' if placed.get('subtitle_on_one_line') is False else '')
+                        +'Word may break pages a line or two differently.','']
+                for kind,where in (result.get('outputs') or {}).items():
+                    if kind=='pdf':lines+=['PDF: '+local_link('open',where),'']
+            else:lines+=['The pages were not rendered, so this layout is unchecked.','']
         if filled.get('closing_section'):lines+=[f"The last section (\"{filled['closing_section']}\") starts the final page, which carries the legal footer.",'']
         lines+=['Not carried: '+('; '.join(filled['not_carried'])+'.' if filled.get('not_carried') else 'nothing.'),'',
                 'Source formatting other than bold, italic, underline, strike and super/subscript is dropped: the template decides how things look.','']

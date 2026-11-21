@@ -66,3 +66,9 @@ footer), paragraph styles the filler looks for (`vmwbodycopy`, `vmwHeadline`, `v
 `vmwtablebodycopy`, `Heading1` to `Heading3`; a missing one falls back to body copy), and
 may have a cover and a table of contents before its first page break.
 
+A template takes `--layout` sidebars when its sample copy has a text box whose paragraphs use a
+`vmwSidebar…` style: the first such box is copied for the opening page and the second for later
+pages (one box serves both). It takes an icon row when it has the `vmwinvisibletable` table
+style. Nothing is declared in `brand.json`; a layout that asks for a slot the template lacks is
+refused.
+

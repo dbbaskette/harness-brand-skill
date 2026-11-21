@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0
+
+- `rebrand run --document` takes `--layout FILE`: a JSON file that fills a document
+  template's sidebars, sets a row of up to four library icons with captions, keeps a figure
+  with its caption, adds page breaks, and names the section that opens the final page. Each
+  is anchored to a heading; a heading that matches no section, or more than one, is refused.
+- With a layout, the result is rendered and the report says how many pages it has, which page
+  each heading, sidebar and figure is on, whether the subtitle fits one line, and where two
+  sidebars would overlap. A PDF is saved beside the Word file.
+- `rebrand run --document` also takes a local Markdown file: `# ` is the title, an italic line
+  under it the subtitle, `## ` and `### ` the headings, with lists, bold, italic and pictures.
+
 ## 1.2.3
 
 - `rebrand run --document`: a short line under the title is taken as the subtitle even

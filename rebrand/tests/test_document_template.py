@@ -150,6 +150,26 @@ class Fill(unittest.TestCase):
         after=[D.text_of(c) for c in children[split+1:] if c.tag==W+'p' and D.text_of(c)]
         self.assertEqual(after,['Last part','Closing words.'])
 
+    def test_closing_from_names_the_section_that_opens_the_closing_section(self):
+        data,report,_=D.fill(template(),source(),closing_from='Second part')
+        self.assertEqual(report['closing_section'],'Second part')
+        children=list(body(data));split=next(i for i,c in enumerate(children) if c.find(W+'pPr/'+W+'sectPr') is not None)
+        after=[D.text_of(c) for c in children[split+1:] if c.tag==W+'p' and D.text_of(c)]
+        self.assertEqual(after[0],'Second part');self.assertIn('Closing words.',after)
+
+    def test_closing_from_must_match_one_later_heading(self):
+        with self.assertRaises(D.TemplateError):D.fill(template(),source(),closing_from='No such part')
+        with self.assertRaises(D.TemplateError):D.fill(template(),source(),closing_from='First part')
+
+    def test_the_report_lists_headings_and_the_paragraph_after_each_picture(self):
+        def picture(d):
+            from PIL import Image
+            raw=io.BytesIO();Image.new('RGB',(40,10),'navy').save(raw,'PNG');raw.seek(0)
+            d.add_picture(raw);d.add_paragraph('Figure 1: A caption')
+        _,report,_=D.fill(template(),source(picture))
+        self.assertEqual(report['headings'],['First part','Second part','Last part'])
+        self.assertEqual(report['captions'],['Figure 1: A caption'])
+
     def test_pictures_are_carried_and_fitted_to_the_column(self):
         from PIL import Image
         def pictured(d):
