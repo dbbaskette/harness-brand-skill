@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,9 +23,16 @@ test('the installer keeps the release in the shared place, links each skills fol
   assert.match(done.stdout.trim().split('\n').at(-1), /^Harness Brand \d+\.\d+\.\d+ is installed for Claude Code, Codex, Agents\.$/);
   const { version } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
   const shared = process.platform === 'darwin' ? join(home, 'Library', 'Application Support', 'Harness Brand') : join(home, '.local', 'share', 'harness-brand');
-  assert.equal(realpathSync(join(shared, 'current')), realpathSync(join(shared, 'versions', version)));
+  // One folder, named for the version and this install; `current` is the address everything uses.
+  const [only, ...others] = readdirSync(join(shared, 'versions'));
+  assert.deepEqual(others, []);
+  assert.ok(only.startsWith(`${version}-`), only);
+  assert.equal(readlinkSync(join(shared, 'current')), join('versions', only));
+  assert.equal(realpathSync(join(shared, 'current')), realpathSync(join(shared, 'versions', only)));
+  assert.ok(done.stdout.includes(`Harness Brand ${version} is installed at ${join(shared, 'current')}.`), 'the installer names current, not the folder behind it');
+  assert.doesNotMatch(done.stdout, /\/versions\//);
   for (const place of ['.claude/skills/harness-brand', '.codex/skills/harness-brand', '.agents/skills/harness-brand']) {
-    assert.ok(lstatSync(join(home, place)).isSymbolicLink(), `${place} is a link`);
+    assert.equal(readlinkSync(join(home, place)), join(shared, 'current'), `${place} links to current`);
     assert.ok(existsSync(join(home, place, 'SKILL.md')), place);
     assert.ok(!existsSync(join(home, place, 'tests')), `${place} holds no tests`);
     assert.match(spawnSync(process.execPath, [join(home, place, 'scripts', 'harness-brand.mjs'), 'version'], { encoding: 'utf8' }).stdout, /^Harness Brand /);
@@ -34,6 +41,7 @@ test('the installer keeps the release in the shared place, links each skills fol
   assert.ok(!readdirSync(join(shared, 'versions')).some((name) => name.startsWith('.')), 'no staging folder is left');
   assert.equal(run('install-skill.mjs', home, '--research', 'skip').status, 0, 'installing again keeps the links');
   assert.match(run('install-skill.mjs', home, '--research', 'skip').stdout, /already links to it/);
+  assert.equal(readdirSync(join(shared, 'versions')).length, 1, 'each install replaces the one before');
 });
 
 test('the installer refuses a folder that is not Harness Brand, and changes nothing', () => {

@@ -3,7 +3,7 @@
 // own module gives the contract its revision and checks it, so the two never disagree.
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { CLI } from '../address.mjs';
 import { sha256 } from '../pack/check.mjs';
 import { packJson } from './brands.mjs';
 import { deckFor } from './icons.mjs';
@@ -13,8 +13,9 @@ const TONE = 'unspecified; use supplied organization rules, never infer tone fro
 const LOOK = 'Before the first build of a new deck or full rework, build one representative content slide in two or three of these directions, render each natively and let the user pick. The pick is the deck\'s direction. Skip only when the caller supplies an approved direction for this deck. A sample settles color meaning and treatment, never one layout for every slide.';
 const fillsText = (tints) => `Fill colors come only from roles, and the contract exports design.slides.fills: {tints: ${tints}}. Light card fills are the neutral panel role;${tints ? '' : ' brand colors are never tinted, lightened or made transparent.'} Meaning colors fill whole cards, bands and badges, or tag a neutral card with a bar strip; the engine picks white or dark text for contrast. Status colors mark a badge, strip or small card, never a large panel.`;
 // Commands a worker is told to run name this installed command and the brands folder in full,
-// since a worker has neither harness-brand on its PATH nor HARNESS_BRAND_DATA.
-const CLI = fileURLToPath(new URL('../../harness-brand.mjs', import.meta.url));
+// since a worker has neither harness-brand on its PATH nor HARNESS_BRAND_DATA. The command is
+// named by its stable address (CLI), never a version folder: these lines are part of the contract
+// and its revision, and a contract is kept and used after Harness Brand is updated.
 const command = (brands, words) => `node "${CLI}" ${words} --data "${brands}"`;
 const CODE_NOTE = 'Use it for inline code and short code (commands, file, API and setting names) at the size of the surrounding text, never for prose, titles or headings.';
 

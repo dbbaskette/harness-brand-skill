@@ -38,7 +38,10 @@ additional variants. Unsupported profiles must not silently fall back to another
 
 Optional shortcuts require sealed `references/entry.json` and `references/SKILL.md`
 manifest entries. The installer generates its own launcher and points the shortcut
-at the shared worker. Existing unrelated skill directories are never overwritten;
+at the shared worker. The skills folders link to a shortcut through Harness Brand's
+installed address (`current/brand-skills/<name>`), never a version folder, so the
+links survive an update; setup after the update fills them in again. Existing
+unrelated skill directories are never overwritten;
 `--replace-brand-shortcuts` permits replacing prior shortcut symlinks only.
 
 Setup takes a verified local snapshot and records its manifest hash and source

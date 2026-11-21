@@ -7,6 +7,19 @@ hands Harness Slides a brand contract; it never draws slides itself.
 
 The commands below are given in full in the `commands` block of `guidance start`, as
 `node <Harness Brand>/scripts/harness-brand.mjs …`, each naming the brands folder with `--data`.
+`<Harness Brand>` is its installed address (`…/Harness Brand/current`, also given as
+`brand.runtime`), which an update keeps, so the commands stay good for the life of the deck.
+
+## Across sessions and updates
+
+Keep the `task` that `guidance start` returns, not a path. At the start of a later session
+run `guidance resume --skill slides --project DIR --task ID --brand BRAND`: it returns the
+Harness Slides `runtime` to run from now, with the deck's saved instructions. Harness Slides
+and Harness Brand may both have been updated since the deck was started; the work carries on
+with what is installed. When Harness Slides' version differs from the one the deck started
+on, the result has a one-line `notice`: show it to the person and go on. A contract exported
+earlier still passes `contract check` while its brand pack is unchanged, and look samples
+taken earlier can still be chosen.
 
 ## The steps of a new deck
 

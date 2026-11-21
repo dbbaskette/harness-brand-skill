@@ -11,12 +11,22 @@ Studio installation is required.
 
 ## Install
 
-You need Node.js 20 or newer. Download and unpack the latest
-[release](https://github.com/dbbaskette/harness-brand-skill/releases/latest), then run
-this inside the unpacked `harness-brand` folder (or a clone of this repository):
+You need Node.js 20 or newer and Git. Harness Brand is installed from the `main` branch
+of this repository: there are no release tags to choose between, and `main` is always the
+version to use. Clone it and run the installer inside the clone:
 
 ```sh
+git clone --branch main https://github.com/dbbaskette/harness-brand-skill.git
+cd harness-brand-skill
 node scripts/install-mac.mjs
+```
+
+To update, pull `main` and install again. The installer checks the new copy before
+anything uses it:
+
+```sh
+git pull
+node scripts/install-mac.mjs --yes
 ```
 
 The installer confirms installation for Claude Code and Codex, then asks for your
@@ -38,10 +48,36 @@ When the folder includes rebranding profiles, the installer also sets up one pri
 Python 3.11+ environment and verified local asset snapshots. Use `--rebrand skip`
 for authoring-only setup. No Google login is started by installation.
 
-Harness Slides is installed separately and is currently required for contract
-export (including blog contracts), look samples and slide guidance. See
-[Harness Slides](https://github.com/dbbaskette/harness-slides-skill). Brand listing,
-pack preparation and validation do not require it.
+Harness Slides is installed separately, from the `main` branch of
+[its own repository](https://github.com/dbbaskette/harness-slides-skill), and is currently
+required for contract export (including blog contracts), look samples and slide guidance.
+Harness Brand uses whichever one is installed, provided it is 0.15.1 or newer. Brand
+listing, pack preparation and validation do not require it.
+
+### One installed copy, one address
+
+The installer keeps Harness Brand in `~/Library/Application Support/Harness Brand` on a
+Mac (`~/.local/share/harness-brand` on Linux): one copy in a folder under `versions/`, and
+`current`, a link to it. The skills folders of Claude Code, Codex and `~/.agents` link to
+`current`, and so does every brand shortcut.
+
+Each install replaces the copy before it. Once `current` points at the new copy, every
+other folder in `versions/` is removed, and any skill link that led into one is moved onto
+`current`. A link or folder in a skills folder that is not Harness Brand's is left as it
+is and named in what the installer prints, as is a folder it could not remove.
+
+Nothing names a version folder. The commands in an exported contract, the commands and
+paths `guidance` returns, `doctor` and `rebrand status` all give
+`…/Harness Brand/current/…`, so they keep working after an update and run the new code.
+Work saved before an update carries on after it: a contract still checks against its
+brand pack, a look sampled earlier can still be chosen, and a deck's guidance task
+resumes on whatever is installed. When Harness Slides was updated since a deck was
+started, `guidance resume` passes on the one-line `notice` it gives.
+
+Rebranding's Python environment, brand snapshots and shortcuts belong to the installed
+copy, so each install sets them up again. If one did not (`--rebrand skip`, or no network
+for Python packages), the rebranding commands refuse and name the one command to run:
+`node "…/Harness Brand/current/scripts/harness-brand.mjs" rebrand setup`.
 
 ## Your brands folder
 
@@ -160,10 +196,17 @@ TrueSource. VMware remains available for authoring; its focused rebranding profi
 has not been validated. The older `apply-brand` implementation remains in the private archived history;
 it is not part of this public project.
 
-Rebranding uses locked snapshots: after reviewing changes in your brands folder,
-run `rebrand setup` to adopt them. Jobs never silently fetch new branding.
+Rebranding works from a verified snapshot of each brand profile, taken by
+`rebrand setup` (which each install runs). After reviewing changes in your brands folder,
+run `rebrand setup` to adopt them. Jobs never silently fetch new branding. A run given no
+`--run-dir` keeps its report and files in `rebrand-runs/` beside `current`, where an
+update leaves them.
 
 ## Development
 
 [SKILL.md](SKILL.md) contains the agent instructions. Run `npm test` and `python3 -m unittest discover -s rebrand/tests -v` for the public
-suites and `node scripts/package.mjs` to build the release ZIP and checksum.
+suites (the second with the Python that has the worker's packages, such as
+`rebrand/.venv/bin/python3` after `rebrand setup`). Changes are merged to `main`, which is
+what people install; raise `version` in `package.json` with each change others rely on, so
+a floor such as "1.4.0 or newer" can be checked. `node scripts/package.mjs` writes the
+checkout as one ZIP with its checksum, for a computer that cannot clone the repository.

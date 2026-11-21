@@ -1,13 +1,15 @@
 // Finding the separately installed Harness Slides, whose own modules give a brand contract its
 // revision and check it. Nothing is fetched or installed here.
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+// Where Harness Slides comes from: its repository's main branch, never a release tag or a fixed
+// commit. minimumVersion is a floor on whichever one is installed; it selects nothing.
 const SOURCES = JSON.parse(readFileSync(new URL('../harness-install-sources.json', import.meta.url), 'utf8'));
-export const MINIMUM = SOURCES.slides.minimumVersion ?? SOURCES.slides.version;
-const REPOSITORY = 'https://github.com/dbbaskette/harness-slides-skill';
+export const MINIMUM = SOURCES.slides.minimumVersion;
+const REPOSITORY = `${SOURCES.slides.repository.replace(/\.git$/, '')} (its ${SOURCES.slides.branch} branch)`;
 
 export const older = (version, minimum) => {
   const a = String(version).split('.').map(Number);
@@ -27,17 +29,18 @@ export function slidesPlaces({ home = homedir(), environment = process.env } = {
 }
 
 /** {root, version} of the Harness Slides to use, or a refusal. One named by HARNESS_SLIDES_ROOT
- *  is used as given; one found must be at least MINIMUM. */
+ *  is used as given; one found must be at least MINIMUM. `root` is the place as it is named, a
+ *  skill link included: the folder behind the link is one version of Harness Slides, which its
+ *  next update removes, so that folder is never given out or kept. */
 export function findSlides(options = {}) {
   const named = Boolean((options.environment ?? process.env).HARNESS_SLIDES_ROOT);
   let tooOld = null;
   for (const place of slidesPlaces(options)) {
     try {
-      const root = realpathSync(place);
-      const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-      if (pkg.name !== 'harness-slides' || !existsSync(join(root, 'scripts', 'harness-slides.mjs'))) continue;
+      const pkg = JSON.parse(readFileSync(join(place, 'package.json'), 'utf8'));
+      if (pkg.name !== 'harness-slides' || !existsSync(join(place, 'scripts', 'harness-slides.mjs'))) continue;
       if (!named && older(pkg.version, MINIMUM)) { tooOld ??= pkg.version; continue; }
-      return { root, version: pkg.version };
+      return { root: place, version: pkg.version };
     } catch {
       // Not there, or not readable: try the next place.
     }

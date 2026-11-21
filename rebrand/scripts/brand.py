@@ -369,7 +369,7 @@ def main(argv=None):
     parser.add_argument('--verify-copy',type=file_id,help='Recheck an existing output against the source; read-only, no new copy')
     parser.add_argument('--review',action='store_true',help='Read-only visual review by the calling agent harness, and one bounded Slides repair batch')
     parser.add_argument('--reviewer',choices=('auto','claude','codex'),default='auto',help='Harness that reviews with --review; auto is the one this command was called from')
-    parser.add_argument('--run-dir',help='New private directory for readable reports and review artifacts; defaults to project runs/')
+    parser.add_argument('--run-dir',help='New private directory for readable reports and review artifacts; defaults to a new folder in rebrand-runs/ beside the installed Harness Brand (runs/ in a checkout)')
     parser.add_argument('--account',help='Existing gcloud account; does not switch the active account')
     args=parser.parse_args(argv)
     run_dir=None;owns_run=False
@@ -391,7 +391,8 @@ def main(argv=None):
             if run_dir.exists() and any(run_dir.iterdir()):raise BrandError('Use a new empty run directory; existing runs are never overwritten or republished.')
             run_dir.mkdir(parents=True,exist_ok=True,mode=0o700)
         else:
-            base=Path(__file__).resolve().parents[1]/'runs';base.mkdir(exist_ok=True)
+            from brand_assets import runs_folder
+            base=runs_folder();base.mkdir(parents=True,exist_ok=True)
             run_dir=Path(tempfile.mkdtemp(prefix='brand-',dir=base))
         owns_run=True
         if args.review:
@@ -434,5 +435,6 @@ if __name__=='__main__':
     try:
         import pptx,docx
     except ImportError:
-        sys.exit('Run node scripts/harness-brand.mjs rebrand setup once to install the private formatting runtime.')
+        from brand_assets import setup_command
+        sys.exit(f'The private formatting runtime is not set up for this version of Harness Brand. Set it up with: {setup_command()}')
     sys.exit(main())

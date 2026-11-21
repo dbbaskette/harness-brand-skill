@@ -4,7 +4,7 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { link, mkdir, open, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { CLI, repointCommands } from '../address.mjs';
 import { contrast } from '../pack/check.mjs';
 import { dataFolder } from './brands.mjs';
 import { buildContract } from './contract.mjs';
@@ -14,7 +14,6 @@ import { findSlides, slidesModule } from './slides.mjs';
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const text = (value) => typeof value === 'string' && value.trim().length > 0;
 const lower = (value) => String(value ?? '').toLowerCase();
-const CLI = fileURLToPath(new URL('../../harness-brand.mjs', import.meta.url));
 const q = JSON.stringify;
 
 /** Write a new file without ever replacing one (EEXIST if it is taken). */
@@ -282,20 +281,23 @@ export async function chooseLook({ samples, choice, words, wordsFile, outline, w
   const shown = images.every(Boolean) ? 'rendered' : 'unrendered';
   if (shown === 'unrendered' && unrendered !== true) throw new Error(`These samples were not rendered; choose with --unrendered. ${RENDER_ADVICE} The deck is then an unreviewed draft.`);
   const thanks = picked.layouts.thanks;
+  // Samples taken before an update of Harness Brand may name the folder of the version that drew
+  // them in a house line's command. The choice is carried on with the commands of this one.
+  const houseLines = (manifest.house ?? []).map(repointCommands);
   let updated = null;
   if (outline) {
     const bytes = await readFile(outline);
     if (sha(bytes) !== manifest.outlineSha256) throw new Error('The outline has changed since the samples were made; take new samples first');
     const plan = normalised(JSON.parse(bytes));
     const closingLine = thanks ? [`A thanks-only closing uses the template layout \`${thanks}\`; its artwork already says Thank You and shows no title.`] : [];
-    const house = [...new Set([...houseOf(plan), ...manifest.house, ...closingLine])];
+    const house = [...new Set([...houseOf(plan), ...houseLines, ...closingLine])];
     updated = { ...plan, direction: picked.direction, house,
       layouts: { ...(plan.layouts ?? {}), cover: picked.layouts.cover, section: picked.layouts.section, closing: picked.layouts.closing },
       approval: [...(plan.approval ?? []), `Look chosen: ${picked.name} (${picked.id}), from ${shown === 'rendered' ? 'rendered samples' : 'samples that were not rendered (no preview was available)'}. In their words: "${words.trim()}"`] };
     const { checkOutline } = await slidesModule('scripts/lib/outline.mjs');
     await checkOutline(updated, contract);
   }
-  const record = { schema: 1, choice: picked.id, name: picked.name, direction: picked.direction, layouts: picked.layouts, house: manifest.house, words: words.trim(),
+  const record = { schema: 1, choice: picked.id, name: picked.name, direction: picked.direction, layouts: picked.layouts, house: houseLines, words: words.trim(),
     shown, identity: manifest.identity, contractRevision: manifest.contractRevision, outlineSha256: manifest.outlineSha256, outlineChecked: Boolean(updated),
     chosenAt: new Date().toISOString() };
   if (updated) await writeNew(resolve(write), `${JSON.stringify(updated, null, 2)}\n`);

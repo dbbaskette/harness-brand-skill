@@ -1,5 +1,43 @@
 # Changelog
 
+## 1.4.0
+
+Nothing is tied to one installed version, and everything comes from `main`.
+
+- One address. Every path Harness Brand gives out or writes into a project names
+  `…/Harness Brand/current`, never a folder under `versions/`: the `entry`, `review`,
+  `commands` and `worker` text of `guidance`, the commands inside an exported contract and
+  its DESIGN.md, `look samples` and `look choose`, `doctor` and `rebrand status`. They keep
+  working after an update and run the new code. A checkout gives its own folder.
+  `guidance` also returns `brand.runtime` and `brand.runtimeVersion`.
+- Harness Slides is used where it is found. A skill link is no longer resolved to the
+  version folder behind it, and `guidance` no longer passes a folder to Harness Slides: the
+  `runtime` returned is the one Harness Slides names (its own `current` from 0.19.0), and
+  the `notice` it adds when a deck continues on another version is passed on.
+- Saved work carries on after an update. A contract's revision no longer changes with the
+  folder Harness Brand is installed in, so the same pack exports to the same revision
+  before and after. A contract exported before 1.4.0 names a removed version folder in its
+  commands: `contract check` still passes it on its content and adds a `notice` with the
+  command that exports it again. `look choose` rewrites such commands in the house lines
+  it carries into the outline. Nothing else was bound to a version.
+- The installer keeps one copy. Each install goes into a folder of its own
+  (`versions/<version>-<id>`), `current` (now a relative link) moves onto it, and then every
+  other folder directly inside `versions/` is removed. A link there is neither followed nor
+  removed; a folder that cannot be removed is reported and does not fail the install;
+  nothing is removed when `current` did not move. A `harness-brand` or brand shortcut link
+  in a skills folder that led into a version folder is moved onto `current`. A shortcut
+  name that holds someone else's link or folder is left alone and reported. A run that an
+  earlier version kept inside its folder is moved to `rebrand-runs/` first.
+- Brand shortcuts (`true-source-brand` and the like) are linked as
+  `current/brand-skills/<name>`, with relative links inside. Rebranding's Python
+  environment, snapshots and shortcuts are set up again by each install; where they were
+  not, the refusal names the one command to run. A run given no `--run-dir` keeps its
+  files in `rebrand-runs/` beside `current`.
+- From `main`. The README installs and updates Harness Brand from the `main` branch of its
+  repository, not a release. `scripts/lib/harness-install-sources.json` names Harness
+  Slides' repository and `main`, with `minimumVersion` as a floor on what is installed; the
+  fixed commit and version it recorded are gone.
+
 ## 1.3.0
 
 - `rebrand run --document` takes `--layout FILE`: a JSON file that fills a document
