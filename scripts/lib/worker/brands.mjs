@@ -36,17 +36,20 @@ export function dataFolder(options = {}) {
 }
 
 /** Every pack in the brands folder, usable or not: [{id, pack, brand, problems}], by id. */
-export function listPacks(brands) {
+function packHeaders(brands) {
   if (!brands || !existsSync(brands) || !statSync(brands).isDirectory()) return [];
   return readdirSync(brands).sort()
     .filter((name) => name !== RESERVED && !name.startsWith('.') && existsSync(join(brands, name, 'pack', 'brand.json')))
     .map((id) => {
       const pack = join(brands, id, 'pack');
-      const problems = checkPack(pack);
       let brand = null;
       try { brand = JSON.parse(readFileSync(join(pack, 'brand.json'), 'utf8')); } catch { /* reported by checkPack */ }
-      return { id, pack, brand, problems };
+      return { id, pack, brand };
     });
+}
+
+export function listPacks(brands) {
+  return packHeaders(brands).map(pack => ({ ...pack, problems: checkPack(pack.pack) }));
 }
 
 /** Validate a user-selected brands root before saving settings or installing anything. */
@@ -70,25 +73,32 @@ export function missingData(brands) {
   return `${brands} holds no brand pack that passes pack check.`;
 }
 
-const names = (brand) => [brand.id, brand.name, ...(brand.aliases ?? [])].map((each) => String(each).toLowerCase());
+const names = (brand) => [brand.id, brand.name, ...(Array.isArray(brand.aliases) ? brand.aliases : [])].map((each) => String(each).toLowerCase());
 
 /** The usable pack a request names by id, name or alias in any case, with its variant
  *  (the brand's default when none is named): {id, pack, brand, variant, name}, or a refusal. */
 export function choose(brands, requested, variant) {
-  const usable = listPacks(brands).filter((each) => !each.problems.length);
-  if (!usable.length) throw new Error(missingData(brands));
+  const packs = packHeaders(brands);
   const wanted = String(requested ?? '').trim().toLowerCase();
-  const found = usable.find((each) => names(each.brand).includes(wanted));
+  const checked = new Map();
+  function problems(pack) {
+    if (!checked.has(pack)) checked.set(pack, checkPack(pack.pack));
+    return checked.get(pack);
+  }
+  const matches = packs.filter(({brand}) => brand && names(brand).includes(wanted));
+  const found = matches.find(pack => !problems(pack).length);
   if (!found) {
-    const broken = listPacks(brands).find((each) => each.problems.length && each.brand && names(each.brand).includes(wanted));
-    if (broken) throw new Error(`The ${broken.id} brand pack does not pass pack check: ${broken.problems[0]}`);
+    const usable = packs.filter(pack => !problems(pack).length);
+    if (!usable.length) throw new Error(missingData(brands));
+    const broken = matches[0];
+    if (broken) throw new Error(`The ${broken.id} brand pack does not pass pack check: ${problems(broken)[0]}`);
     throw new Error(`Unknown brand: ${requested ?? '(none)'}. Choose ${usable.map((each) => each.brand.name).join(', ')}.`);
   }
   const chosen = variant ?? found.brand.defaultVariant;
   if (!Object.hasOwn(found.brand.variants, chosen)) {
     throw new Error(`Unknown ${found.id} variant: ${chosen}. Choose ${Object.keys(found.brand.variants).join(', ')}.`);
   }
-  return { ...found, variant: chosen, name: found.brand.name };
+  return { ...found, problems: [], variant: chosen, name: found.brand.name };
 }
 
 /** A pack file read as JSON. */

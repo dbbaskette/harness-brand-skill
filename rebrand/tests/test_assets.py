@@ -22,6 +22,13 @@ class Assets(unittest.TestCase):
             manifest['files'][key]={'source':source,'sha256':A.digest(content)}
         path=self.data/name/'rebrand/manifest.json';path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(manifest))
         return path
+    def test_repeat_install_verifies_existing_snapshot_without_writing_a_second_copy(self):
+        target=A.install(self.data,'example')
+        with patch.object(Path,'write_bytes',side_effect=AssertionError('unexpected snapshot write')), \
+             patch.object(A,'verify',wraps=A.verify) as verify:
+            self.assertEqual(A.install(self.data,'example'),target)
+            self.assertEqual([call.args[0] for call in verify.call_args_list],[target])
+
     def test_snapshot_works_without_original_and_never_fetches(self):
         target=A.install(self.data,'example');shutil.rmtree(self.data)
         with patch.object(A.subprocess,'run',side_effect=AssertionError('runtime must not spawn git')):
