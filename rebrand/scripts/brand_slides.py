@@ -169,33 +169,6 @@ def finish_styles(prs,restyler,roles,protected,title_ids):
                 for effect in list(el.findall(engine.P+'spPr/'+engine.A+'effectLst')):effect.getparent().remove(effect)
 
 
-def reserve_footer(prs,report):
-    from lxml import etree
-    for i,slide in enumerate(prs.slides,1):
-        if i==1:continue
-        tree=slide.shapes._spTree
-        content=[e for e in tree if e.tag in (engine.P+'sp',engine.P+'pic',engine.P+'grpSp',engine.P+'graphicFrame',engine.P+'cxnSp') and not engine.shape_name(e).startswith(engine.CHROME_PREFIX)]
-        boxes=[engine.xfrm_box(e) for e in content]
-        bottom=max((min(b[1]+b[3],prs.slide_height) for b in boxes if b and b[1]<prs.slide_height and b[0]<prs.slide_width and b[0]+b[2]>0),default=0)
-        limit=.925*prs.slide_height
-        if bottom<=limit:continue
-        scale=min(1,limit/bottom)
-        if scale<.90:raise ValueError(f'Slide {i} needs more than a minor footer fit; review its layout.')
-        group=etree.Element(engine.P+'grpSp')
-        nv=etree.SubElement(group,engine.P+'nvGrpSpPr')
-        existing=[int(e.get('id')) for e in tree.iter(engine.P+'cNvPr')]
-        etree.SubElement(nv,engine.P+'cNvPr',id=str(max(existing,default=0)+1),name='Brand content fit')
-        etree.SubElement(nv,engine.P+'cNvGrpSpPr');etree.SubElement(nv,engine.P+'nvPr')
-        gp=etree.SubElement(group,engine.P+'grpSpPr');x=etree.SubElement(gp,engine.A+'xfrm')
-        etree.SubElement(x,engine.A+'off',x=str(int((1-scale)*prs.slide_width/2)),y='0')
-        etree.SubElement(x,engine.A+'ext',cx=str(int(prs.slide_width*scale)),cy=str(int(prs.slide_height*scale)))
-        etree.SubElement(x,engine.A+'chOff',x='0',y='0')
-        etree.SubElement(x,engine.A+'chExt',cx=str(prs.slide_width),cy=str(prs.slide_height))
-        for e in content:group.append(e)
-        tree.insert(2,group)
-        report['content_groups_fit_to_footer']+=1
-
-
 def apply(source,output,remove=None,template_plan=None):
     profile=json.loads((PROFILE/'brand.json').read_text())
     spec=copy.deepcopy(profile['variants']['light'])
