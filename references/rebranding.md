@@ -96,6 +96,41 @@ strike and super/subscript are kept, code keeps a fixed-width face, and every ot
 format is dropped. The run refuses to write anything if text, a link, a picture or a
 footnote would be lost, and checks the Google copy again after import.
 
+### Sidebars, an icon row and page breaks
+
+A template's main column takes the source's words. Its other slots take a layout file:
+
+```sh
+python3 scripts/brand.py FILE.docx --document solution-brief --layout layout.json --output word
+```
+
+```json
+{"closing_from": "Why us",
+ "page_break_before": ["The platform"],
+ "figure": {},
+ "icon_row": {"before": "The risks", "items": [{"icon": "functional-icons.database", "label": "AI-ready data", "detail": "Governed data products"}]},
+ "sidebars": [{"page_of": null, "blocks": [{"type": "heading", "text": "At a glance"}, {"type": "bullet", "text": "**Reach** – where it runs"}]},
+              {"page_of": "The platform", "blocks": [{"type": "stat", "text": "76 percent …", "attribution": "A survey, 2026"}]}]}
+```
+
+Each heading named must match exactly one level-1 or level-2 heading of the source; otherwise
+nothing is written. `page_of: null` is the opening page. Block types are `heading`, `body`,
+`bullet`, `stat` and `quote`; a `stat` or `quote` needs its `attribution`, and a `quote` is only
+for words a source attributes to a named person. `**bold**` is the only inline markup. An icon
+row takes one to four icons from the brand's library (`rebrand icons --brand B search …`).
+`closing_from` names the section that opens the final page; without it the last level-1 section
+does. `figure: {}` keeps a picture on one page with the paragraph after it.
+
+The source may be a `.md` file instead of a `.docx`: `# ` is the title, a whole line in
+_italics_ under it the subtitle, `## ` and `### ` level-1 and level-2 headings, with `- ` bullets,
+`1. ` numbered items, `**bold**`, `*italic*` and `![alt](file)` pictures read from beside the file.
+
+With LibreOffice and poppler present the result is rendered and `result.json` gains `layout`:
+the page count, the page each heading, sidebar and figure is on, whether the subtitle fits one
+line, and any page where two sidebars would overlap. Tell the person those findings. Word may
+break pages a line or two differently, so look at the pages before calling it done. Without
+those tools the layout is reported as unchecked.
+
 Read the report's "Document template" section and tell the person:
 
 - the title and subtitle used, and whether they were guessed (a source with no Title

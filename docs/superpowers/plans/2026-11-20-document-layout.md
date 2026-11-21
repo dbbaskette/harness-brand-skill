@@ -584,7 +584,8 @@ class IconRow(unittest.TestCase):
         data,_=filled();item=self.ROW['icon_row']['items'][0]
         with self.assertRaises(D.TemplateError):L.apply(data,sidebar_template(),{'icon_row':{'before':'First part','items':[item]*5}},lambda i:png())
         with self.assertRaises(D.TemplateError):L.apply(data,sidebar_template(),{'icon_row':{'before':'First part','items':[{'icon':'x','label':'y'}]}},lambda i:png())
-        with self.assertRaises(D.TemplateError) as raised:L.apply(data,sidebar_template(icon_table=False),self.ROW,lambda i:png())
+        bare,_,_=D.fill(sidebar_template(icon_table=False),source())   # the filled document carries the template's styles
+        with self.assertRaises(D.TemplateError) as raised:L.apply(bare,sidebar_template(icon_table=False),self.ROW,lambda i:png())
         self.assertIn('no icon row',str(raised.exception))
 ```
 
@@ -776,8 +777,9 @@ class Locate(unittest.TestCase):
         self.assertEqual(found['sidebars_sharing_a_page'],[])
 
     def test_two_sidebars_on_a_page_and_a_wrapped_subtitle_are_reported(self):
-        pages=[PAGES[0].replace('And its subtitle','And its\nsubtitle')+'\n76 percent say so',PAGES[1].replace('76 percent say so',''),PAGES[2]]
-        found=P.locate(pages,FILL,LAYOUT)
+        pages=[PAGES[0].replace('And its subtitle','And its\nsubtitle'),PAGES[1],PAGES[2]]
+        both={'sidebars':[LAYOUT['sidebars'][0],{'page_of':'First part','blocks':[{'type':'body','text':'More'}]}]}
+        found=P.locate(pages,FILL,both)
         self.assertEqual(found['sidebars_sharing_a_page'],[1]);self.assertFalse(found['subtitle_on_one_line'])
 
     def test_something_not_found_has_no_page(self):
@@ -831,7 +833,9 @@ def locate(pages,fill,layout):
     """fill: {'subtitle','headings','captions'} from the source; layout: the layout that was applied."""
     flat=[squeeze(p) for p in pages]
     page_of=lambda words:next((n for n,text in enumerate(flat,1) if squeeze(words) and squeeze(words) in text),None)
-    bars=[{'page_of':bar.get('page_of') or None,'page':page_of(bar['blocks'][0]['text'].replace('**','')[:60])} for bar in layout.get('sidebars') or []]
+    # A sidebar is fixed to the page of the paragraph it is anchored to, which follows its heading. Its own
+    # words are no guide: in a narrow column they wrap, and the page's text interleaves them with the main column.
+    bars=[{'page_of':bar.get('page_of') or None,'page':page_of(bar['page_of']) if bar.get('page_of') else (1 if pages else None)} for bar in layout.get('sidebars') or []]
     used=[b['page'] for b in bars if b['page']]
     lines=[squeeze(line) for line in pages[0].splitlines()] if pages else []
     return {'pages':len(pages),'headings':{h:page_of(h) for h in fill.get('headings') or []},'sidebars':bars,
@@ -974,7 +978,8 @@ In `rebrand/scripts/reporting.py`, inside `if filled:`, directly after the line 
 ```python
         placed=result.get('layout')
         if placed:
-            lines+=['### Layout','',f"Set from the layout file: {placed.get('sidebars',0)} sidebars, {len(placed.get('icons') or [])} icons, {len(placed.get('page_breaks') or [])} page breaks, {placed.get('figures',0)} figures kept with their captions.",'']
+            count=lambda value:len(value) if isinstance(value,list) else (value or 0)   # a rendered report lists pages where an unrendered one counts
+            lines+=['### Layout','',f"Set from the layout file: {count(placed.get('sidebars'))} sidebars, {count(placed.get('icons'))} icons, {count(placed.get('page_breaks'))} page breaks, {count(placed.get('figures'))} figures kept with their captions.",'']
             if placed.get('rendered'):
                 lines+=[f"Rendered with LibreOffice: {placed['pages']} pages. Sidebars on pages "+', '.join(str(b['page'] or 'not found') for b in placed['sidebars'])+'. '
                         +('The subtitle fits one line. ' if placed.get('subtitle_on_one_line') else 'The subtitle wraps onto a second line. ' if placed.get('subtitle_on_one_line') is False else '')
