@@ -46,6 +46,16 @@ Open with the template's cover, break long decks into sections and close with it
 slide, using the direction's `layouts`; never put a cover, section or closing on the
 content layout. `layouts` lists every layout of the brand's template and what each is for.
 
+## Recreating a source
+
+When the person wants a poster, a PDF or another tool's deck in the brand and looking
+the same, there is no draft and no look step: the source sets what the deck says and how
+each page is laid out. Settle the brand and the delivery (a dense source is a reading
+deck), export the contract, and build as Harness Slides' "Recreating a source" says:
+every node and arrow where the source has it, in the brand's colour and type roles. The
+checkpoint is the first rebuilt slide shown beside its source page; final acceptance is
+as for any deck.
+
 ## Icons
 
 `icons --query "<concept>"` finds an icon in the brand's library. Place it by its id in a
@@ -60,7 +70,8 @@ meaning; never emoji or drawn substitutes.
 - **The look** is chosen from rendered samples.
 - **Final acceptance** follows the brand audit and review of the rendered native deck.
 
-A studio may host these checkpoints in its own interface; none is skipped. Per-slide
+A studio may host these checkpoints in its own interface; none is skipped. A recreation
+has the one checkpoint its own section names in place of the first two. Per-slide
 design helpers are for an explicit slide-by-slide walkthrough only.
 
 ## Previews
